@@ -1,36 +1,37 @@
 "use client";
 import { useEffect,useState } from "react";
-
+import {useRouter} from "next/navigation";
+import {api} from "@/utils/api"
 export default function ProfilePage(){
     const [user,setUser] = useState(null);
 
     useEffect(()=>{
-const fetchProfile = async() =>{
         const token = localStorage.getItem("token");
-        if(!token) return console.log("No token found")
-         
-            const res = await fetch("http://localhost:5001/api/users/profile",{
-                headers:{
-                Authorization: `Bearer ${token}`,
-                }
-            }) 
-            
-            const data = await res.json();
-            if(res.ok){
-                setUser(data.user);
-            }else{
-                console.log(data.message);
+        if(!token) return router.push("/auth/login");// redirect if no token
+
+            const fetchProfile = async ()=>{
+                const data = await api("/api/users/profile");
+                if(data.user) setUser(data.user);
+                else router.push("/auth/login");
             }
-        };
+            
         fetchProfile();
     },[]);
     if(!user) return <p>Loading profile...</p>
 
     return(
-        <div className="p-4">
-            <h1 className="text-xl font-semibold">Welcome, {user.username}</h1>
+        <div className="flex flex-col items-center justify-center min-h-screen">
+            <h1 className="text-2xl font-bold mb-4">Welcome, {user.username}</h1>
             <p>Email:{user.email}</p>
             <p>Role:{user.role}</p>
+
+            <button className="bg-red-500 text-white mt-6 px-4 py-2 rounded"
+                onClick={()=>{
+                    localStorage.removeItem("token");
+                    router.push("/auth/login")
+                }}>
+                    Logout
+            </button>
         </div>
     )
 }
