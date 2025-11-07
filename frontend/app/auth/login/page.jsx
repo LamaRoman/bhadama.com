@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useState } from "react";
 
@@ -6,6 +7,7 @@ export default function LoginPage(){
     const [email,setEmail] = useState("");
     const [password,setPassword] = useState("");
     const [message,setMessage]=useState("");
+    const router = useRouter();
 
     const handleSubmit = async(e)=>{
         e.preventDefault();
@@ -19,6 +21,7 @@ export default function LoginPage(){
 
             if(res.ok){
                 localStorage.setItem("token",data.token);
+                router.push("/users/profile")
                 setMessage("Login successful")
             }else{
                 setMessage(data.message || "Invalid credentials")
