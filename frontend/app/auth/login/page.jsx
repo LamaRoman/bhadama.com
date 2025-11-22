@@ -1,46 +1,52 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { api } from "../../utils/api.js";
 import { useState } from "react";
-
+import { useAuth } from "../../../hooks/useAuth.js"
 export default function LoginPage(){
+    const {login} = useAuth();
     const [email,setEmail] = useState("");
     const [password,setPassword] = useState("");
-    const [message,setMessage]=useState("");
-    const router = useRouter();
+    const [error,setError]=useState("");
 
     const handleSubmit = async(e)=>{
         e.preventDefault();
         try{
-            const res = await fetch("http://localhost:5001/api/auth/login",{
+            const data = await api("/api/auth/login",{
                 method:"POST",
-                headers: {"Content-Type":"application/json"},
                 body: JSON.stringify({email,password})
-            })
-            const data = await res.json();
-
-            if(res.ok){
-                localStorage.setItem("token",data.token);
-                router.push("/users/profile")
-                setMessage("Login successful")
-            }else{
-                setMessage(data.message || "Invalid credentials")
-            }
+            });
+            console.log("Response from backend:", data);
+            login(data.user,data.token);
+            
         }catch(error){
-            setMessage("server error");
+            console.log(error);
+            setError("server error");
         }
     };
 
     return(
-        <div className="flex flex-col items-center justify-center min-h-screen">
-        <h1 className="text-2xl font-bold mb-4">Login</h1>
-        <form onSubmit={handleSubmit} className="flex flex-col w-80 gap-3">
-            <input type="email" placeholder="Email" value={email} onChange={(e)=>setEmail(e.target.value)} required/>
-            <input type="password" placeholder="Password" value={password} onChange={(e)=>setPassword(e.target.value)} required/>
-            <button className="bg-lama text-white py-2 rounded"> Login </button>
-        </form>
+        <div className="flex justify-center items-center h-screen">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md w-96">
+                <h2 className="text-2xl mb-4">Login</h2>
+                    {error && <p className="text-red-500">{error}</p>}
+                    <input 
+                        type="email"
+                        placeholder="Email"
+                        className="border p-2 w-full mb-3"
+                        value={email}
+                        onChange={(e)=>setEmail(e.target.value)}
+                    />
+                    <input
+                        type="password"
+                        placeholder="Password"
+                        className="border p-2 w-full mb-3"
+                        value={password}
+                        onChange={(e)=>setPassword(e.target.value)}
+                    />
 
-        {message && <p className="mt-3">{message}</p>}
+            <button type="submit" className="bg-lama w-full p-2 text-white">Login</button>
+
+            </form>
         </div>
     )
 }
