@@ -1,62 +1,69 @@
 "use client";
 import { useState } from "react";
-import Navbar from "../../../../components/protectedRoute.jsx";
-import { useAuth } from "../../../../hooks/useAuth.js";
-import {api} from "../../../utils/api.js";
-import { ProtectedRoute } from "../../../../components/protectedRoute.jsx";
+import { useRouter } from "next/navigation";
+import { api } from "../../../utils/api";
+export default function NewListing() {
+  const router = useRouter();
 
-export default function NewListing(){
-    const {user} = useAuth();
-    const [title,setTitle] = useState("");
-    const [price,setPrice] = useState("");
-    const [message,setMessage] = useState("");
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    price: "",
+    location: "",
+  });
 
-    const handleSubmit = async (e)=>{
-        e.preventDefault();
-        try{
-            await api("/api/listings",{
-                method:"POST",
-                body:JSON.stringify({title,price}),
-            });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/listings", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      router.push("/host/listings");
+    } catch (err) {
+      console.error("Error creating listing:", err);
+    }
+  };
 
-            setMessage("Listing added successfully!");
-            setTitle("");
-            setPrice("");
-        }catch (err){
-            setMessage(err.message);
-        }
-    };
+  return (
+    <div className="p-5 max-w-lg mx-auto">
+      <h1 className="text-xl font-bold">Create Listing</h1>
 
-    return(
-        <ProtectedRoute>
-            <div>
-                <Navbar />
-                <main className="p-10">
-                    <h1 className="text-2xl font-bold mb-4">Add New Listing</h1>
-                    {message && <p className="mb-4">{message}</p>}
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-md">
-                        <input 
-                            type="text"
-                            placeholder="Title"
-                            className="border p-2"
-                            value={title}
-                            onChange={(e)=>setTitle(e.target.value)}
-                            required
-                        />
-                        <input
-                            type="number"
-                            placeholder="Price"
-                            className="border p-2"
-                            value={price}
-                            onChange={(e)=> setPrice(e.target.value)}
-                            required
-                        />
-                        <button type="submit" className="bg-lama p-2 text-white">
-                            Add Listing
-                        </button>
-                    </form>
-                </main>
-            </div>
-        </ProtectedRoute>
-    )
+      <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+
+        <input
+          name="title"
+          placeholder="Title"
+          className="w-full p-3 border"
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+        />
+
+        <textarea
+          name="description"
+          placeholder="Description"
+          className="w-full p-3 border"
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+        />
+
+        <input
+          name="price"
+          placeholder="Price"
+          type="number"
+          className="w-full p-3 border"
+          onChange={(e) => setForm({ ...form, price: e.target.value })}
+        />
+
+        <input
+          name="location"
+          placeholder="Location"
+          className="w-full p-3 border"
+          onChange={(e) => setForm({ ...form, location: e.target.value })}
+        />
+
+        <button className="bg-blue-600 text-white p-3 rounded w-full">
+          Create Listing
+        </button>
+      </form>
+    </div>
+  );
 }
