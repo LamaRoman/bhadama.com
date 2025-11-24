@@ -7,10 +7,16 @@ export default function HostListings() {
   const [listings, setListings] = useState([]);
   const router = useRouter();
 
- const fetchListings = async () =>{
-  const data = await api("/api/listings");
-  setListings(data)
- }
+const fetchListings = async () => {
+  try {
+    const data = await api("/api/listings");
+    setListings(data);
+  } catch (err) {
+    console.error(err);
+    setListings([]);
+  }
+};
+
 
  useEffect(()=>{
   fetchListings();
