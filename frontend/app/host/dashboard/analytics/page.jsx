@@ -3,9 +3,24 @@
 import { ProtectedRoute } from "../../../../components/ProtectedRoute";
 import { useAuth } from "../../../../hooks/useAuth";
 import Navbar from "../../../../components/Navbar";
+import { useEffect } from "react";
 
 export default function BookingsPage(){
     const {user} = useAuth();
+    const [stats,setStats] = useState({views:0,bookings:0});
+
+    useEffect(()=>{
+      const fetchAnalytics = async () =>{
+        try{
+          const data = await api("/host/analytics");
+          setStats(data);
+        }catch(err){
+          console.error(err);
+          setStats({views:0,bookings:0})
+        }
+      };
+      fetchAnalytics();
+    },[]);
 
     return(
           <ProtectedRoute user={user} role="HOST">
@@ -13,11 +28,9 @@ export default function BookingsPage(){
         <Navbar />
         <main className="p-10">
           <h1 className="text-2xl font-bold">Analytics</h1>
-          <p className="mt-2 text-gray-700">View your listing analytics here.</p>
-
-          {/* Placeholder for analytics charts */}
           <div className="mt-6 border p-4 rounded text-gray-500">
-            Analytics charts will appear here.
+          <p>Total Views:{stats.views}</p>
+          <p>Total Bookings:{stats.bookings}</p>
           </div>
         </main>
       </div>
