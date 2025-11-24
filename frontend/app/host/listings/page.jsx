@@ -1,21 +1,27 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../../utils/api";
+import {useRouter} from "next/navigation"
 
 export default function HostListings() {
   const [listings, setListings] = useState([]);
+  const router = useRouter();
 
-  useEffect(() => {
-    const fetchListings = async () => {
-      try {
-        const data = await api("/api/listings", { method: "GET" });
-        setListings(data);
-      } catch (err) {
-        console.error("Error fetching listings:", err);
-      }
-    };
-    fetchListings();
-  }, []);
+ const fetchListings = async () =>{
+  const data = await api("/api/listings");
+  setListings(data)
+ }
+
+ useEffect(()=>{
+  fetchListings();
+ },[])
+
+  const handleDelete = async (id)=>{
+    if(!confirm("Are you sure you want to delete this listing?" )) return;
+
+    await api(`/api/listings/${id}`,{method: "DELETE"});
+    fetchListings(); // refresh list after deletion
+  }
 
   return (
     <div className="p-5">
@@ -23,10 +29,26 @@ export default function HostListings() {
 
       {listings.map((l) => (
         <div key={l.id} className="border p-3 rounded mb-2">
+          <div>
           <h2 className="font-semibold">{l.title}</h2>
           <p>{l.location}</p>
           <p>${l.price}</p>
-        </div>
+          </div>
+        
+        <div className="flex gap-2">
+          <button
+          className="bg-yellow-500 text-white px-3 py-1 rounded"
+          onClick={()=> router.push(`/host/listings/${l.id}`)}>
+            Edit
+          </button>
+
+          <button className="bg-red-600 text-white px-3 py-1 rounded"
+            onClick={()=>handleDelete(l.id)}
+          >
+            Delete
+          </button>
+          </div>
+          </div>
       ))}
     </div>
   );
