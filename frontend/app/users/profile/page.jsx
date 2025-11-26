@@ -1,10 +1,10 @@
 "use client";
 import { useEffect,useState } from "react";
 import {useRouter} from "next/navigation";
-import {api} from "@/utils/api"
+import { api } from "../../utils/api";
 export default function ProfilePage(){
     const [user,setUser] = useState(null);
-
+    const router = useRouter();
     useEffect(()=>{
         const token = localStorage.getItem("token");
         if(!token) return router.push("/auth/login");// redirect if no token

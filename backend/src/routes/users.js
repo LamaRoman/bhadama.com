@@ -2,6 +2,7 @@ import express from "express"
 import { authMiddleware } from "../middleware/authMiddleware.js"
 import { roleMiddleware } from "../middleware/roleMiddleware.js"
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt"
 const prisma = new PrismaClient();
 
 
@@ -41,5 +42,34 @@ router.get("/admin/dashboard",authMiddleware,roleMiddleware(["ADMIN"]),(req,res)
 router.get("/host/dashboard",authMiddleware,roleMiddleware(["HOST"]),(req,res)=>{
     res.json({message:`Welcome Host ${req.user.email}`})
 })
+
+router.post("/create-admin", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  try {
+    const existingAdmin = await prisma.user.findUnique({ where: { email } });
+    if (existingAdmin) {
+      return res.status(400).json({ message: "Admin with this email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const admin = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: "ADMIN", // Must match enum exactly
+      },
+    });
+
+    res.json({ message: "Admin created successfully", admin });
+  } catch (error) {
+    console.error("Error creating admin:", error);
+    res.status(500).json({ message: "Error creating admin" });
+  }
+});
+
+
 
 export default router;
