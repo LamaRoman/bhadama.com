@@ -15,11 +15,10 @@ export default function NewListing() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api("/api/listings", {
+      await api("/api/hostListings", {
         method: "POST",
         body: JSON.stringify(form),
       });
-      router.push("/host/listings");
     } catch (err) {
       console.error("Error creating listing:", err);
     }

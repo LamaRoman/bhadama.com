@@ -16,7 +16,7 @@ export default function EditListing(){
 
     useEffect(()=>{
         const fetchListing = async()=>{
-            const data = await api(`/api/listings/${id}`);
+            const data = await api(`/api/hostListings/${id}`);
             setForm({
                 title:data.title,
                 description:data.description,
@@ -29,7 +29,7 @@ export default function EditListing(){
 
     const handleSubmit = async (e) =>{
         e.preventDefault();
-        await api(`/api/listings/${id}`,
+        await api(`/api/hostListings/${id}`,
             {method:"PUT",body:JSON.stringify(form)})
             router.push("/host/listings")
         };

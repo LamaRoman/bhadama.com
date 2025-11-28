@@ -14,6 +14,10 @@ router.post(
     try {
       const { title, description, price, location } = req.body;
 
+      if(!title || !description || !price || !location){
+        return res.status(400).json({error:"All fiends are required"});
+      }
+      
       const listing = await prisma.listing.create({
         data: {
           title,

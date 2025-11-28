@@ -49,8 +49,10 @@ export const useAuth = () => {
         return "/admin/dashboard";
       case "HOST":
         return "/host/dashboard";
+      case "USER":
+        return "/"
       default:
-        return "/users/profile";
+        return "/";
     }
   };
 

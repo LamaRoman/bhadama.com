@@ -16,19 +16,43 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  listings Listing[] // connects the user to all their listings
+  listings   Listing[]
+  bookings   Booking[]   // <-- opposite relation added
 }
 
 model Listing {
-  id          Int      @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   title       String
   description String
   price       Float
   location    String
   hostId      Int
-  host        User     @relation(fields: [hostId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  host        User          @relation(fields: [hostId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  availability Availability[]
+  bookings     Booking[]    // <-- opposite relation added
+}
+
+model Availability {
+  id          Int      @id @default(autoincrement())
+  listing     Listing  @relation(fields: [listingId], references: [id])
+  listingId   Int
+  date        DateTime
+  isAvailable Boolean  @default(true)
+}
+
+model Booking {
+  id          Int       @id @default(autoincrement())
+  listingId   Int
+  userId      Int
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime  @default(now())
+
+  listing     Listing   @relation(fields: [listingId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
 }
 
 enum Role {

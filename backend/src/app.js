@@ -3,10 +3,10 @@ import 'dotenv/config';
 import cors from "cors"
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
-import host from "./routes/host.js";
 import admin from "./routes/admin.js";
-import listingRoutes from "./routes/listingRoutes.js";
-import hostDashboardRoutes from "./routes/hostDashboardRoutes.js";
+import publicListingRoutes from "./routes/publicListingRoutes.js";
+import hostListingsRoutes from "./routes/hostListingRoutes.js"
+import availabilityRoutes from "./routes/availabilityRoutes.js"
 const app = express();
 app.use(express.json())
 app.use(cors());
@@ -15,9 +15,11 @@ app.use(cors());
 // Routes
 app.use("/api/auth",authRoutes);
 app.use("/api/users",userRoutes);
+app.use("/api/hostListings",hostListingsRoutes);
 app.use("/api/admin",admin);
-app.use("/api/listings",listingRoutes);
-app.use("/api/host-dashboard",hostDashboardRoutes);
+app.use("/api/publicListings",publicListingRoutes);
+app.use("/api/availability",availabilityRoutes);
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! Server is working.");
