@@ -41,6 +41,7 @@ model Availability {
   listingId   Int
   date        DateTime
   isAvailable Boolean  @default(true)
+  
 }
 
 model Booking {

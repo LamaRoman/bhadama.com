@@ -50,7 +50,7 @@ export const useAuth = () => {
       case "HOST":
         return "/host/dashboard";
       case "USER":
-        return "/"
+        return "/users/dashboard"
       default:
         return "/";
     }

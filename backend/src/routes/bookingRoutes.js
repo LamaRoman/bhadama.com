@@ -1,58 +1,97 @@
 import express from "express";
-import {prisma} from "../config/prisma.js";
+import { prisma } from "../config/prisma.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { roleMiddleware } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 
-// Create booking
-router.post("/",authMiddleware,async(req,res)=>{
-    const {listingId,startDate,endDate}= req.body;
-    const userId = req.user.id;
+router.post("/", authMiddleware, roleMiddleware(["USER"]), async (req, res) => {
+  try {
+    console.log("REQ BODY:", req.body);
+    const { listingId: rawListingId, dates: rawDates } = req.body;
+    const userId = req.user.userId;
+    console.log("USER ID:", userId);
 
-    try{
-        // convert to date objects
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+    // Validate listingId
+    const listingId = Number(rawListingId);
+    if (isNaN(listingId)) {
+      return res.status(400).json({ error: "Invalid listingId" });
+    }
 
-        // 1. Get all availability within that range
+    // Validate dates
+    if (!Array.isArray(rawDates) || rawDates.length === 0) {
+      return res.status(400).json({ error: "Dates array is required" });
+    }
 
-        const days = await prisma.availability.findMany({
-            where:{
-                listingId,
-                date:{gte:start,lte:end}
-            }
+    const bookings = [];
+
+    // Use Prisma transaction for atomic booking
+    await prisma.$transaction(async (prismaTx) => {
+      for (const dateStr of rawDates) {
+        console.log("Processing date:", dateStr);
+
+        const startOfDay = new Date(dateStr);
+        if (isNaN(startOfDay)) {
+          throw new Error(`Invalid date: ${dateStr}`);
+        }
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Check if user already has a booking for this listing/date
+        const existingBooking = await prismaTx.booking.findFirst({
+          where: {
+            listingId,
+            userId,
+            startDate: startOfDay,
+          },
         });
-
-        // 2. Check if all days are available
-        const unavailable = days.find(d=>isAvailable === false);
-        if(unavailable){
-            return res.status(400).json({error:"Some dates are already booked."});
+        if (existingBooking) {
+          throw new Error(`You already have a booking for ${dateStr}`);
         }
 
-        // 3. Create booking
-        const booking = await prisma.booking.create({
-            data:{
-                listingId,
-                userId,
-                startDate:start,
-                endDate:end
-            }
+        // Check availability
+        let availRecord = await prismaTx.availability.findFirst({
+          where: { listingId, date: startOfDay },
         });
 
-        //4. Update availability to false
-        await prisma.availability.updateMany({
-            where:{
-                listingId,
-                date:{gte:start, lte:end}
-            },
-            data:{isAvailable:false}
-        })
+        if (!availRecord) {
+          // Create new availability record as booked
+          availRecord = await prismaTx.availability.create({
+            data: { listingId, date: startOfDay, isAvailable: false },
+          });
+          console.log("Created new availability record:", availRecord);
+        } else {
+          if (!availRecord.isAvailable) {
+            throw new Error(`Date not available: ${dateStr}`);
+          }
+          // Mark as booked
+          availRecord = await prismaTx.availability.update({
+            where: { id: availRecord.id },
+            data: { isAvailable: false },
+          });
+          console.log("Updated availability record:", availRecord);
+        }
 
-        res.json({message:"Booking successful!",booking});
-    }catch (err){
-        console.error(err);
-        res.status(500).json({error: "Server error"});
-    }
-})
+        // Create booking
+        const booking = await prismaTx.booking.create({
+          data: {
+            listingId,
+            userId,
+            startDate: startOfDay,
+            endDate: endOfDay,
+          },
+        });
+        console.log("Created booking:", booking);
+        bookings.push(booking);
+      }
+    });
+
+    res.json({ message: "All bookings created successfully", bookings });
+  } catch (err) {
+    console.error("BOOKING ROUTE ERROR:", err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
 
 export default router;

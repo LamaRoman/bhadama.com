@@ -1,0 +1,34 @@
+.premium-calendar {
+  display: block !important;
+  width: auto;
+}
+
+.react-multi-date-picker {
+  font-size: 1.2rem;
+}
+
+.react-multi-date-picker .rmdp-months {
+  display: flex !important;
+  gap: 1rem;
+}
+
+.react-multi-date-picker .rmdp-month {
+  box-shadow: none;
+  border: none;
+}
+
+.react-multi-date-picker .rmdp-day {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+}
+
+.react-multi-date-picker .rmdp-day-selected {
+  background-color: #10b981 !important;
+  color: white !important;
+}
+
+.react-multi-date-picker .rmdp-day-disabled {
+  color: #d1d5db !important;
+  text-decoration: line-through;
+}

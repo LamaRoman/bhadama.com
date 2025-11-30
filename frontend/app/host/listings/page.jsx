@@ -13,6 +13,7 @@ export default function HostListings() {
   const fetchListings = async () => {
     try {
       const data = await api("/api/hostListings");
+      console.log("Listings Response:", data);
       setListings(data);
     } catch (err) {
       console.error(err);
