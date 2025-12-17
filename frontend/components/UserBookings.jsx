@@ -1,117 +1,341 @@
+// components/UserBookings.jsx
 "use client";
+
 import { useState } from "react";
 import { api } from "../app/utils/api.js";
-import DatePicker from "react-multi-date-picker";
-import "react-multi-date-picker/styles/colors/green.css";
 
 export default function UserBookings({ bookings, setBookings }) {
-  const [editingId, setEditingId] = useState(null);
-  const [selectedRange, setSelectedRange] = useState([null, null]);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleEdit = (booking) => {
-    setEditingId(booking.id);
-    setSelectedRange([new Date(booking.startDate), new Date(booking.endDate)]);
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
-  const saveEdit = async (bookingId) => {
-    if (!selectedRange[0] || !selectedRange[1]) return alert("Select a date range");
-    const datesArray = [];
-    let current = new Date(selectedRange[0]);
-    const last = new Date(selectedRange[1]);
+  const calculateNights = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.round((end - start) / (1000 * 60 * 60 * 24));
+  };
 
-    while (current <= last) {
-      const year = current.getFullYear();
-      const month = String(current.getMonth() + 1).padStart(2, "0");
-      const day = String(current.getDate()).padStart(2, "0");
-      datesArray.push(`${year}-${month}-${day}`);
-      current.setDate(current.getDate() + 1);
-    }
+  const getStatusColor = (startDate, endDate) => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (end < now) return "bg-gray-100 text-gray-600"; // Past
+    if (start <= now && end >= now) return "bg-green-100 text-green-700"; // Active
+    return "bg-blue-100 text-blue-700"; // Upcoming
+  };
+
+  const getStatusText = (startDate, endDate) => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (end < now) return "Completed";
+    if (start <= now && end >= now) return "Active";
+    return "Upcoming";
+  };
+
+  const handleCardClick = (booking) => {
+    setSelectedBooking(booking);
+    setIsModalOpen(true);
+    setError("");
+  };
+
+  const handleCancelBooking = async () => {
+    if (!selectedBooking) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this booking? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    setError("");
 
     try {
-      await api(`/api/usersBookings/${bookingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates: datesArray }),
+      const response = await api(`/api/bookings/${selectedBooking.id}`, {
+        method: "DELETE",
       });
-      alert("Booking updated!");
-      setEditingId(null);
-      // Refresh bookings
-      const updated = await api("/api/usersBookings");
-      setBookings(Array.isArray(updated) ? updated : []);
+
+      if (response.error) {
+        setError(response.error);
+      } else {
+        // Remove booking from list
+        setBookings(bookings.filter((b) => b.id !== selectedBooking.id));
+        setIsModalOpen(false);
+        setSelectedBooking(null);
+      }
     } catch (err) {
       console.error(err);
-      alert("Failed to update booking");
+      setError("Failed to cancel booking. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const deleteBooking = async (bookingId) => {
-    if (!confirm("Are you sure you want to delete this booking?")) return;
-    try {
-      await api(`/api/bookings/${bookingId}`, { method: "DELETE" });
-      alert("Booking deleted");
-      setBookings(bookings.filter((b) => b.id !== bookingId));
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete booking");
-    }
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedBooking(null);
+    setError("");
   };
 
   return (
-    <div className="space-y-4">
-      {bookings.length === 0 && <p>No bookings found.</p>}
-      {bookings.map((booking) => (
-        <div key={booking.id} className="border rounded p-4 shadow flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="font-semibold">{booking.listingTitle}</p>
-            <p>
-              {new Date(booking.startDate).toLocaleDateString()} -{" "}
-              {new Date(booking.endDate).toLocaleDateString()}
-            </p>
-          </div>
+    <div>
+      {/* Booking Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {bookings.map((booking) => (
+          <div
+            key={booking.id}
+            onClick={() => handleCardClick(booking)}
+            className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+          >
+            {/* Listing Image */}
+            <div className="h-40 bg-gray-200 relative">
+              {booking.listing?.images?.[0]?.url ? (
+                <img
+                  src={booking.listing.images[0].url}
+                  alt={booking.listing.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg
+                    className="h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
+                  </svg>
+                </div>
+              )}
 
-          {editingId === booking.id ? (
-            <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center gap-2">
-              <DatePicker
-                value={selectedRange}
-                onChange={setSelectedRange}
-                range
-                numberOfMonths={2}
-                minDate={new Date()}
-                format="YYYY-MM-DD"
-                className="green"
-                style={{ width: "100%" }}
-              />
-              <button
-                onClick={() => saveEdit(booking.id)}
-                className="bg-blue-600 text-white px-4 py-2 rounded"
+              {/* Status Badge */}
+              <span
+                className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                  booking.startDate,
+                  booking.endDate
+                )}`}
               >
-                Save
-              </button>
-              <button
-                onClick={() => setEditingId(null)}
-                className="bg-gray-400 text-white px-4 py-2 rounded"
-              >
-                Cancel
-              </button>
+                {getStatusText(booking.startDate, booking.endDate)}
+              </span>
             </div>
-          ) : (
-            <div className="mt-2 md:mt-0 flex gap-2">
-              <button
-                onClick={() => handleEdit(booking)}
-                className="bg-yellow-500 text-white px-4 py-2 rounded"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => deleteBooking(booking.id)}
-                className="bg-red-500 text-white px-4 py-2 rounded"
-              >
-                Delete
-              </button>
+
+            {/* Booking Info */}
+            <div className="p-4">
+              <h3 className="font-semibold text-gray-900 truncate">
+                {booking.listing?.title || "Listing"}
+              </h3>
+              <p className="text-sm text-gray-500 truncate">
+                {booking.listing?.location || "Location"}
+              </p>
+
+              <div className="mt-3 flex items-center justify-between">
+                <div className="text-sm">
+                  <p className="text-gray-600">
+                    {formatDate(booking.startDate).split(",")[1]}
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    {calculateNights(booking.startDate, booking.endDate)} nights
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900">
+                    ${booking.listing?.price * calculateNights(booking.startDate, booking.endDate) || "N/A"}
+                  </p>
+                  <p className="text-gray-400 text-xs">total</p>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+        ))}
+      </div>
+
+      {/* Booking Detail Modal */}
+      {isModalOpen && selectedBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={closeModal}
+          ></div>
+
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={closeModal}
+              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            {/* Listing Image */}
+            <div className="h-48 bg-gray-200">
+              {selectedBooking.listing?.images?.[0]?.url ? (
+                <img
+                  src={selectedBooking.listing.images[0].url}
+                  alt={selectedBooking.listing.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg
+                    className="h-16 w-16 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+
+            {/* Booking Details */}
+            <div className="p-6">
+              {/* Status Badge */}
+              <span
+                className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getStatusColor(
+                  selectedBooking.startDate,
+                  selectedBooking.endDate
+                )}`}
+              >
+                {getStatusText(selectedBooking.startDate, selectedBooking.endDate)}
+              </span>
+
+              <h2 className="text-2xl font-bold text-gray-900">
+                {selectedBooking.listing?.title || "Booking Details"}
+              </h2>
+              <p className="text-gray-500">
+                {selectedBooking.listing?.location || ""}
+              </p>
+
+              {/* Dates Section */}
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Check-in
+                  </p>
+                  <p className="font-semibold text-gray-900 mt-1">
+                    {formatDate(selectedBooking.startDate)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Check-out
+                  </p>
+                  <p className="font-semibold text-gray-900 mt-1">
+                    {formatDate(selectedBooking.endDate)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Price Breakdown */}
+              <div className="mt-6 border-t pt-4">
+                <div className="flex justify-between text-gray-600 mb-2">
+                  <span>
+                    ${selectedBooking.listing?.price} x{" "}
+                    {calculateNights(selectedBooking.startDate, selectedBooking.endDate)} nights
+                  </span>
+                  <span>
+                    ${selectedBooking.listing?.price *
+                      calculateNights(selectedBooking.startDate, selectedBooking.endDate)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-semibold text-gray-900 text-lg pt-2 border-t">
+                  <span>Total</span>
+                  <span>
+                    ${selectedBooking.listing?.price *
+                      calculateNights(selectedBooking.startDate, selectedBooking.endDate)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="mt-6 space-y-3">
+                {/* Only show cancel for upcoming bookings */}
+                {getStatusText(selectedBooking.startDate, selectedBooking.endDate) ===
+                  "Upcoming" && (
+                  <>
+                    <button
+                      onClick={handleCancelBooking}
+                      disabled={isLoading}
+                      className="w-full py-3 px-4 border border-red-500 text-red-500 rounded-xl font-semibold hover:bg-red-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? "Cancelling..." : "Cancel Booking"}
+                    </button>
+                  </>
+                )}
+
+                {/* View Listing Button */}
+                <button
+                  onClick={() => {
+                    window.location.href = `/public/listings/${selectedBooking.listingId}`;
+                  }}
+                  className="w-full py-3 px-4 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition"
+                >
+                  View Listing
+                </button>
+
+                {/* Contact Host (optional) */}
+                <button
+                  onClick={() => alert("Contact host feature coming soon!")}
+                  className="w-full py-3 px-4 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition"
+                >
+                  Contact Host
+                </button>
+              </div>
+
+              {/* Booking ID */}
+              <p className="mt-6 text-center text-xs text-gray-400">
+                Booking ID: {selectedBooking.id}
+              </p>
+            </div>
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

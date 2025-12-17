@@ -1,46 +1,105 @@
 import express from "express";
-import 'dotenv/config';
-import cors from "cors"
+import cors from "cors";
+import dotenv from "dotenv";
+import helmet from "helmet";
+
+// Import all routes
+import {
+  availabilityRoutes,
+  bookingRoutes,
+  hostListingRoutes,
+  listingImageRoutes,
+  profileRoutes,
+  publicListingRoutes,
+} from "./routes/index.js";
 import authRoutes from "./routes/auth.js";
-import userBookingRoutes from "./routes/usersBookingRoutes.js";
-import admin from "./routes/admin.js";
-import publicListingRoutes from "./routes/publicListingRoutes.js";
-import hostListingsRoutes from "./routes/hostListingRoutes.js"
-import availabilityRoutes from "./routes/availabilityRoutes.js"
-import userProfileRoutes from "./routes/profileRoutes.js"
-import bookingRoutes from "./routes/bookingRoutes.js"
+
+
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
-app.use(express.json())
-app.use(cors());
+// ==================== CORS CONFIGURATION ==================== //
+
+const allowedOrigins = ["http://localhost:3000", "http://localhost:5001"];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
+// ==================== SECURITY MIDDLEWARE ==================== //
+// Helmet helps secure Express apps by setting various HTTP headers
+app.use(helmet());
 
 
-// Routes
-app.use("/api/auth",authRoutes);
-app.use("/api/usersBooking",userBookingRoutes);
-app.use("/api/hostListings",hostListingsRoutes);
-app.use("/api/admin",admin);
-app.use("/api/publicListings",publicListingRoutes);
-app.use("/api/availability",availabilityRoutes);
-app.use("/api/userBookings",userBookingRoutes);
-app.use("/api/users",userProfileRoutes);
-app.use("/api/bookings",bookingRoutes);
 
-// Test route
-app.get("/", (req, res) => {
-  res.send("Hello! Server is working.");
+// ==================== BODY PARSING MIDDLEWARE ==================== //
+// Parse JSON bodies (limit to prevent large payload attacks)
+app.use(express.json({ limit: "10mb" }));
+// Parse URL-encoded bodies
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// ==================== ROUTES ==================== //
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-//Testing
-/*
-app.post("/signup", async (req, res) => {
-  const { name, email, password, role } = req.body;
-  res.json({ success: true, received: { name, email, password, role } });
+// Public routes (no auth required)
+app.use("/api/publicListings", publicListingRoutes);
+
+// Protected routes
+app.use("/api/availability", availabilityRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/host/listings", hostListingRoutes);
+app.use("/api/listings", listingImageRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/auth", authRoutes);
+
+// ==================== ERROR HANDLING ==================== //
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
-*/
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("Global error:", err);
 
-const PORT = process.env.PORT; 
+  // Don't leak error details in production
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : err.message;
+
+  res.status(err.status || 500).json({ error: message });
+});
+
+// ==================== SERVER ==================== //
+const PORT = process.env.PORT || 5001;
+
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 });
+
+export default app;

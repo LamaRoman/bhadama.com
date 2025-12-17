@@ -1,54 +1,21 @@
 import express from "express";
-import {prisma} from "../config/prisma.js"
+import * as controller from "../controllers/publicListingController.js";
 
 const router = express.Router();
 
-//Get all listings (public)
-router.get("/",async(req,res)=>{
-    try{
-        const listings = await prisma.listing.findMany({
-        include:{
-            host:{
-                select:{
-                    id:true,
-                    name:true,
-                }
-            },
-            availability :true,
-        }
-    })
-    res.json(listings)
-    }catch(err){
-        console.error(err);
-        res.status(500).json({error:"Server error"})
-    }
-    
-});
+// Get featured listings (must be before /:id to avoid conflict)
+router.get("/featured", controller.getFeaturedListings);
 
-// GET single listing by id (public)
-router.get("/:id", async(req,res)=>{
-    const id = Number(req.params.id);
-    try{
-        const listing = await prisma.listing.findUnique({
-            where:{id},
-            include:{
-                host:{
-                    select:{
-                        id:true,
-                        name:true,
-                    }
-                },
-                availability: true,
-            }
-        });
-        if(!listing){
-            return res.status(404).json({error:"Listing not found"});
-        }
-        res.json(listing);
-    }catch(err){
-        console.error(err);
-        res.status(500).json({error:"Server error"});
-    }
-})
+// Search listings
+router.get("/search", controller.searchListings);
+
+// Get listings by location
+router.get("/location/:location", controller.getListingsByLocation);
+
+// Get all public listings with optional filters
+router.get("/", controller.getListings);
+
+// Get a single public listing by ID
+router.get("/:id", controller.getListingById);
 
 export default router;

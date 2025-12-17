@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef } from "react";
 import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function SearchBar({ onSearch }) {
   const [location, setLocation] = useState("");
@@ -43,6 +44,19 @@ export default function SearchBar({ onSearch }) {
     });
   };
 
+  // Custom Date Range Button (like Airbnb)
+  const DateRangeButton = forwardRef(({ value, onClick }, ref) => {
+    return (
+      <button
+        className="border p-3 rounded-lg w-48 text-left"
+        onClick={onClick}
+        ref={ref}
+      >
+        {value || "Check-in → Check-out"}
+      </button>
+    );
+  });
+
   return (
     <div className="bg-white shadow p-4 rounded-xl mb-6">
 
@@ -59,31 +73,29 @@ export default function SearchBar({ onSearch }) {
           onChange={(e) => setLocation(e.target.value)}
         />
 
-        {/* Check-in */}
+        {/* Check-in / Check-out */}
         <DatePicker
-          selected={checkIn}
-          onChange={(date) => setCheckIn(date)}
-          placeholderText="Check-in"
-          className="border p-3 rounded-lg w-36"
+          selectsRange
+          startDate={checkIn}
+          endDate={checkOut}
+          onChange={(dates) => {
+            const [start, end] = dates;
+            setCheckIn(start);
+            setCheckOut(end);
+          }}
+          monthsShown={2}
+          placeholderText="Check-in → Check-out"
+          customInput={<DateRangeButton />}
         />
 
-        {/* Check-out */}
-        <DatePicker
-          selected={checkOut}
-          onChange={(date) => setCheckOut(date)}
-          placeholderText="Check-out"
-          className="border p-3 rounded-lg w-36"
-          minDate={checkIn}
-        />
-
-        {/* Pax */}
+        {/* Guests */}
         <input
           type="number"
           placeholder="Guests"
           className="border p-3 rounded-lg w-20"
           value={pax}
           min={1}
-          onChange={(e) => setPax(e.target.value)}
+          onChange={(e) => setPax(Number(e.target.value))}
         />
 
         {/* Search Button */}
@@ -95,7 +107,7 @@ export default function SearchBar({ onSearch }) {
         </button>
       </div>
 
-      {/* Row 2: Categories + Sort SMALL + Right aligned */}
+      {/* Row 2: Categories + Sort */}
       <div className="flex justify-start items-center gap-4 mt-3">
 
         {/* Categories */}

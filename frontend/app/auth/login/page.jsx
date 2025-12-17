@@ -13,7 +13,7 @@ export default function LoginPage(){
         try{
             const data = await api("/api/auth/login",{
                 method:"POST",
-                body: JSON.stringify({email,password})
+                body:{email,password}
             });
             console.log("Response from backend:", data);
             login(data.user,data.token);

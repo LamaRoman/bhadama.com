@@ -20,6 +20,11 @@ model User {
   bookings   Booking[]   // <-- opposite relation added
 }
 
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+}
+
 model Listing {
   id          Int           @id @default(autoincrement())
   title       String
@@ -31,8 +36,20 @@ model Listing {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  status      ListingStatus @default(DRAFT) // NEW
+
   availability Availability[]
   bookings     Booking[]    // <-- opposite relation added
+  images       ListingImage[] // New relation
+}
+
+model ListingImage {
+  id          Int       @id @default(autoincrement())
+  listing     Listing   @relation(fields: [listingId],references:[id])
+  listingId   Int
+  url         String
+  isCover     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
 }
 
 model Availability {
