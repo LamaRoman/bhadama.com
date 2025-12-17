@@ -25,7 +25,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo - Links to listings page */}
         <Link 
-          href="/public/listings" 
+          href="/public" 
           className="flex items-center py-1 px-3 -ml-3 rounded-lg hover:bg-gray-100 transition-all duration-200"
         >
           <Image

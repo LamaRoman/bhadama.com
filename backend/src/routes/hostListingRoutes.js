@@ -11,7 +11,7 @@ import {
   updateStatus,
 } from "../controllers/hostListingController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js"
-import  {upload, handleMulterError}  from "../middleware/uploadMemory.js";
+import  {upload, handleMulterError}  from "../middleware/multer.js";
 
 const router = express.Router();
 

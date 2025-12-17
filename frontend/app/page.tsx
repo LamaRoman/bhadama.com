@@ -2,13 +2,12 @@
 
 import Footer from "../components/Footer.jsx";
 import Navbar from "../components/Navbar.jsx";
-import PublicListingPage from "./public/PublicListingPage.jsx"
+import PublicListing from "./public/page.jsx";
 export default function Home(){
   return (
     <div>
-      <Navbar/>
       <main className="p-10">
-        <PublicListingPage/>
+        <PublicListing/>
       </main>
       <Footer/>
     </div>

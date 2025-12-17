@@ -13,6 +13,8 @@ model User {
   email     String   @unique
   password  String
   role      Role     @default(USER)
+  profilePhoto  String?
+  lastNameChange   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

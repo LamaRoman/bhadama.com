@@ -16,9 +16,24 @@ const generateUniqueFilename = (originalName) => {
   return `${timestamp}-${uniqueId}.${extension}`;
 };
 
-export const uploadToS3 = async (file, listingId) => {
+/**
+ * Upload file to S3
+ * @param {Object} file - File object with buffer, originalname, mimetype
+ * @param {String} key - S3 key/path (if not provided, will use listingId pattern)
+ * @param {Number} listingId - Optional listing ID for backward compatibility
+ */
+export const uploadToS3 = async (file, key, listingId = null) => {
   try {
-    const key = `listings/${listingId}/${generateUniqueFilename(file.originalname)}`;
+    // If key is a number, it's the old listingId parameter - handle backward compatibility
+    if (typeof key === 'number') {
+      listingId = key;
+      key = `listings/${listingId}/${generateUniqueFilename(file.originalname)}`;
+    }
+    
+    // If no key provided but listingId is, generate listing key
+    if (!key && listingId) {
+      key = `listings/${listingId}/${generateUniqueFilename(file.originalname)}`;
+    }
 
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME,

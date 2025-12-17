@@ -152,9 +152,12 @@ export default function PublicListings() {
 
         <div className="max-w-7xl mx-auto px-5 py-5 relative z-10">
           <div className="text-center mb-8 animate-fade-in">
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3 tracking-tight">
-              Book the space. Host the moment.
-            </h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight">
+  <span className="text-gray-900">Book the space. </span>
+  <span className="bg-gradient-to-r from-purple-600 via-pink-500 to-red-500 bg-clip-text text-transparent">
+    Host the moment.
+  </span>
+</h1>
               <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto">
               Discover unique places and create unforgettable memories
             </p>

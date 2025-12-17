@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import helmet from "helmet";
-
+import userRoutes from "./routes/userRoutes.js"
 // Import all routes
 import {
   availabilityRoutes,
@@ -55,7 +55,7 @@ app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 // Parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
+app.use("/api/users",userRoutes)
 // ==================== ROUTES ==================== //
 
 // Health check endpoint
