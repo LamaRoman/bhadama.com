@@ -50,6 +50,7 @@ model User {
 
   listings Listing[]
   bookings Booking[]
+  images   Image[]   // ← User profile photos
 }
 
 model Listing {
@@ -82,24 +83,31 @@ model Listing {
   createdAt   DateTime?     @default(now())
   updatedAt   DateTime?     @updatedAt
   
-  host         User            @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  images       ListingImage[]
+  host         User      @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  images       Image[]   // ← Changed from ListingImage[]
   bookings     Booking[]
   
   @@index([hostId])
   @@index([status])
 }
 
-model ListingImage {
+// ✅ SIMPLE and REUSABLE
+model Image {
   id        Int      @id @default(autoincrement())
-  listingId Int
   url       String
+  s3Key     String   // ✅ Added for reliable S3 management
   isCover   Boolean  @default(false)
   createdAt DateTime @default(now())
   
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  // Optional relations (at least one should be set)
+  listingId Int?
+  userId    Int?
+  
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([listingId])
+  @@index([userId])
 }
 
 model Booking {

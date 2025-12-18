@@ -8,7 +8,7 @@ export default function PublicListings() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [imageErrors, setImageErrors] = useState({}); // Track which images failed
+  const [imageErrors, setImageErrors] = useState({});
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGuestPicker, setShowGuestPicker] = useState(false);
@@ -131,7 +131,7 @@ export default function PublicListings() {
   };
 
   const formatDateRange = () => {
-    if (!searchFilters.checkIn) return "Add dates";
+    if (!searchFilters.checkIn) return "When?";
     const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
     return searchFilters.checkOut
       ? `${formatDate(searchFilters.checkIn)} - ${formatDate(searchFilters.checkOut)}`
@@ -156,7 +156,6 @@ export default function PublicListings() {
 
       {/* HERO */}
       <div className="relative bg-white border-b border-gray-200">
-
         <div className="max-w-7xl mx-auto px-5 py-5 relative z-10">
           <div className="text-center mb-8 animate-fade-in">
             <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight">
@@ -170,7 +169,7 @@ export default function PublicListings() {
             </p>
           </div>
 
-          {/* SEARCH - (keeping existing search form code) */}
+          {/* SEARCH FORM - COMPLETE VERSION */}
           <form
             className="relative z-[1000] max-w-5xl mx-auto bg-white rounded-2xl shadow-xl p-2 overflow-visible animate-slide-up"
             onSubmit={(e) => {
@@ -178,8 +177,8 @@ export default function PublicListings() {
               fetchListings(searchFilters);
             }}
           >
-            {/* ... (rest of search form - unchanged) ... */}
             <div className="flex flex-col md:flex-row gap-2">
+              {/* Location Input */}
               <input
                 className="flex-1 px-4 py-3 text-base border-2 border-transparent rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800 placeholder-gray-400 font-medium"
                 placeholder="Where to?"
@@ -188,6 +187,168 @@ export default function PublicListings() {
                   setSearchFilters({ ...searchFilters, location: e.target.value })
                 }
               />
+
+              {/* Date Picker */}
+              <div className="relative" ref={datePickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className="w-full md:w-auto px-4 py-3 text-base border-2 border-transparent rounded-xl hover:bg-gray-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-700 font-medium text-left flex items-center gap-2"
+                >
+                  <span className="text-xl">📅</span>
+                  {formatDateRange()}
+                </button>
+
+                {showDatePicker && (
+                  <div className="absolute top-full mt-2 left-0 md:left-auto md:right-0 bg-white rounded-2xl shadow-2xl p-5 w-80 z-[2000] border border-gray-200">
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between mb-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCurrentMonth(
+                            new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1)
+                          )
+                        }
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <span className="font-bold text-gray-900">
+                        {currentMonth.toLocaleDateString("en-US", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCurrentMonth(
+                            new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)
+                          )
+                        }
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-2 mb-3">
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                        <div key={d} className="text-center text-xs font-bold text-gray-500">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2">
+                      {Array.from({ length: daysInMonth().start }).map((_, i) => (
+                        <div key={`empty-${i}`} />
+                      ))}
+                      {Array.from({ length: daysInMonth().days }).map((_, i) => {
+                        const day = i + 1;
+                        const past = isPastDate(day);
+                        const selected = isDateSelected(day);
+                        const inRange = isDateInRange(day);
+
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            disabled={past}
+                            onClick={() => selectDate(day)}
+                            className={`
+                              aspect-square p-2 rounded-lg text-sm font-medium transition-all
+                              ${past ? "text-gray-300 cursor-not-allowed" : ""}
+                              ${selected ? "bg-blue-600 text-white font-bold" : ""}
+                              ${inRange ? "bg-blue-100 text-blue-700" : ""}
+                              ${!past && !selected && !inRange ? "hover:bg-gray-100 text-gray-700" : ""}
+                            `}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchFilters({ ...searchFilters, checkIn: "", checkOut: "" });
+                        }}
+                        className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-semibold text-gray-700 transition-colors"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDatePicker(false)}
+                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Guest Picker */}
+              <div className="relative" ref={guestPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestPicker(!showGuestPicker)}
+                  className="w-full md:w-auto px-4 py-3 text-base border-2 border-transparent rounded-xl hover:bg-gray-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-700 font-medium text-left flex items-center gap-2"
+                >
+                  <span className="text-xl">👥</span>
+                  {searchFilters.guests} {searchFilters.guests === 1 ? "guest" : "guests"}
+                </button>
+
+                {showGuestPicker && (
+                  <div className="absolute top-full mt-2 left-0 md:left-auto md:right-0 bg-white rounded-2xl shadow-2xl p-5 w-64 z-[2000] border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-900">Guests</span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSearchFilters({
+                              ...searchFilters,
+                              guests: Math.max(1, searchFilters.guests - 1),
+                            })
+                          }
+                          className="w-8 h-8 flex items-center justify-center rounded-full border-2 border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 font-bold transition-colors"
+                        >
+                          −
+                        </button>
+                        <span className="w-8 text-center font-bold text-gray-900">
+                          {searchFilters.guests}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSearchFilters({
+                              ...searchFilters,
+                              guests: Math.min(50, searchFilters.guests + 1),
+                            })
+                          }
+                          className="w-8 h-8 flex items-center justify-center rounded-full border-2 border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 font-bold transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Search Button */}
               <button 
                 type="submit"
                 className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group"
@@ -198,6 +359,30 @@ export default function PublicListings() {
                 Search
               </button>
             </div>
+
+            {/* Active Filters */}
+            {hasActiveFilters && (
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-600 font-medium">Active filters:</span>
+                {searchFilters.location && (
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                    {searchFilters.location}
+                  </span>
+                )}
+                {searchFilters.checkIn && (
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                    {formatDateRange()}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -249,7 +434,6 @@ export default function PublicListings() {
                         onError={() => handleImageError(listing.id)}
                       />
                     ) : (
-                      /* Placeholder Icon */
                       <div className="flex flex-col items-center justify-center text-gray-400">
                         <svg className="w-16 h-16 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

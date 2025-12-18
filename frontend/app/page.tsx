@@ -9,7 +9,6 @@ export default function Home(){
       <main className="p-10">
         <PublicListing/>
       </main>
-      <Footer/>
     </div>
   )
 }

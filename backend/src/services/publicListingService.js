@@ -1,19 +1,15 @@
 import { prisma } from "../config/prisma.js";
 
-
 /**
  * Get all public listings with filters
- * @param {Object} filters - Optional filters (location, minPrice, maxPrice, search)
- * @returns {Promise<Array>} - Array of listings
  */
 export async function getPublicListings(filters = {}) {
   const { location, minPrice, maxPrice, search } = filters;
 
   const where = {
-    status: "ACTIVE", // Only show active listings
+    status: "ACTIVE",
   };
 
-  // Location filter
   if (location) {
     where.location = {
       contains: location,
@@ -21,39 +17,17 @@ export async function getPublicListings(filters = {}) {
     };
   }
 
-  // Combine price & search filters
-  const orFilters = [];
-
-  // Price filters
   if (minPrice || maxPrice) {
-    if (minPrice) {
-      const min = parseFloat(minPrice);
-      orFilters.push(
-        { hourlyRate: { gte: min } },
-        { halfDayRate: { gte: min } },
-        { fullDayRate: { gte: min } }
-      );
-    }
-    if (maxPrice) {
-      const max = parseFloat(maxPrice);
-      orFilters.push(
-        { hourlyRate: { lte: max } },
-        { halfDayRate: { lte: max } },
-        { fullDayRate: { lte: max } }
-      );
-    }
+    where.price = {};
+    if (minPrice) where.price.gte = parseFloat(minPrice);
+    if (maxPrice) where.price.lte = parseFloat(maxPrice);
   }
 
-  // Search filter (title or description)
   if (search) {
-    orFilters.push(
+    where.OR = [
       { title: { contains: search, mode: "insensitive" } },
-      { description: { contains: search, mode: "insensitive" } }
-    );
-  }
-
-  if (orFilters.length) {
-    where.OR = orFilters;
+      { description: { contains: search, mode: "insensitive" } },
+    ];
   }
 
   return prisma.listing.findMany({
@@ -72,17 +46,14 @@ export async function getPublicListings(filters = {}) {
   });
 }
 
-
 /**
  * Get a single public listing by ID
- * @param {number} listingId - The listing ID
- * @returns {Promise<Object|null>} - Listing or null
  */
 export async function getPublicListingById(listingId) {
   return prisma.listing.findFirst({
     where: {
       id: listingId,
-      status: "ACTIVE", // Only show if active
+      status: "ACTIVE",
     },
     include: {
       images: true,
@@ -90,20 +61,16 @@ export async function getPublicListingById(listingId) {
         select: {
           id: true,
           name: true,
-          profilePhoto: true,  // ← ADDED
+          profilePhoto: true,
         },
       },
-      availability: {
-        orderBy: { date: "asc" },
-      },
+      // ✅ CLEAN - no availability model
     },
   });
 }
 
 /**
- * Get featured listings (e.g., top rated, most booked)
- * @param {number} limit - Number of listings to return
- * @returns {Promise<Array>} - Array of featured listings
+ * Get featured listings
  */
 export async function getFeaturedListings(limit = 6) {
   return prisma.listing.findMany({
@@ -117,7 +84,7 @@ export async function getFeaturedListings(limit = 6) {
         select: {
           id: true,
           name: true,
-          profilePhoto: true,  // ← ADDED
+          profilePhoto: true,
         },
       },
       _count: {
@@ -133,8 +100,6 @@ export async function getFeaturedListings(limit = 6) {
 
 /**
  * Get listings by location
- * @param {string} location - Location to search
- * @returns {Promise<Array>} - Array of listings
  */
 export async function getListingsByLocation(location) {
   return prisma.listing.findMany({
@@ -151,7 +116,7 @@ export async function getListingsByLocation(location) {
         select: {
           id: true,
           name: true,
-          profilePhoto: true,  // ← ADDED
+          profilePhoto: true,
         },
       },
     },
@@ -161,8 +126,6 @@ export async function getListingsByLocation(location) {
 
 /**
  * Search listings
- * @param {string} query - Search query
- * @returns {Promise<Array>} - Array of matching listings
  */
 export async function searchListings(query) {
   return prisma.listing.findMany({
@@ -180,7 +143,7 @@ export async function searchListings(query) {
         select: {
           id: true,
           name: true,
-          profilePhoto: true,  // ← ADDED
+          profilePhoto: true,
         },
       },
     },

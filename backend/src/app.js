@@ -6,7 +6,8 @@ import authRoutes from "./routes/auth.js";
 import hostListingRoutes from "./routes/hostListingRoutes.js";
 import publicListingRoutes from "./routes/publicListingRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
-
+import userRoutes from "./routes/userRoutes.js"
+import bookingRoutes from "./routes/bookingRoutes.js"
 const app = express();
 
 // Middleware
@@ -21,6 +22,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/host/listings", hostListingRoutes);
 app.use("/api/publicListings", publicListingRoutes);
 app.use("/api/availability", availabilityRoutes);
+app.use("/api/users",userRoutes);
+app.use("/api/bookings",bookingRoutes)
 
 // Test route
 app.get("/", (req, res) => {

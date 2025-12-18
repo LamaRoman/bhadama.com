@@ -1,9 +1,5 @@
 import { prisma } from "../config/prisma.js";
-
-/**
- * Create a new listing
- * POST /api/host/listings
- */
+import { uploadToS3 } from "../config/s3.js";
 
 export const uploadImages = async (req, res) => {
   try {
@@ -14,18 +10,40 @@ export const uploadImages = async (req, res) => {
       return res.status(400).json({ error: "No images uploaded" });
     }
 
-    // TEMP: just log to prove route works
-    console.log("FILES:", req.files.length);
+    const uploadedImages = [];
+
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+
+      // Upload each file to S3
+      const { secure_url, key } = await uploadToS3(file, null, listingId);
+
+      // Determine if this should be the cover image
+      const isCover = i === 0; // first uploaded image is cover
+
+      // Save in database
+      const image = await prisma.image.create({
+        data: {
+          listingId,
+          url: secure_url,
+          s3Key: key,      // store the S3 key for deletion later
+          isCover,
+        },
+      });
+
+      uploadedImages.push(image);
+    }
 
     res.status(201).json({
-      message: "Images received",
-      count: req.files.length,
+      message: "Images uploaded successfully",
+      images: uploadedImages,
     });
   } catch (error) {
     console.error("UPLOAD IMAGES ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const createListing = async (req, res) => {
   try {

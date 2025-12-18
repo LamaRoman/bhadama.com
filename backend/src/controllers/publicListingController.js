@@ -33,16 +33,17 @@ export async function getListingById(req, res) {
     const listing = await publicListingService.getPublicListingById(listingId);
     if (!listing) return res.status(404).json({ error: "Listing not found" });
 
-    // Get booked slots (availability)
-    const bookedSlots = await availabilityService.getBookedSlots(listingId);
+    // ❌ REMOVE THESE 3 LINES:
+    // const bookedSlots = await availabilityService.getBookedSlots(listingId);
+    // res.json({ ...listing, bookedSlots });
 
-    res.json({ ...listing, bookedSlots });
+    // ✅ JUST RETURN THE LISTING:
+    res.json(listing);
   } catch (err) {
     console.error("GET PUBLIC LISTING ERROR:", err);
     res.status(500).json({ error: err.message || "Server error" });
   }
 }
-
 
 /**
  * Get featured listings

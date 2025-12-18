@@ -51,6 +51,7 @@ export default function NewListing() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(""); // ✅ New: Upload stage tracker
 
   const toggleAmenity = (amenity) => {
     if (selectedAmenities.includes(amenity)) {
@@ -80,11 +81,13 @@ export default function NewListing() {
     setError("");
     setSuccess("");
     setLoading(true);
+    setUploadProgress("Creating listing..."); // ✅ Stage 1
 
     // Validation
     if (!form.hourlyRate && !form.halfDayRate && !form.fullDayRate) {
       setError("Please set at least one pricing option");
       setLoading(false);
+      setUploadProgress("");
       return;
     }
 
@@ -119,6 +122,7 @@ export default function NewListing() {
       if (createRes.error) {
         setError(createRes.error);
         setLoading(false);
+        setUploadProgress("");
         return;
       }
 
@@ -127,11 +131,17 @@ export default function NewListing() {
       if (!listingId) {
         setError("Failed to create listing - no ID returned");
         setLoading(false);
+        setUploadProgress("");
         return;
       }
 
+      // ✅ Listing created successfully
+      setUploadProgress("✓ Listing created successfully!");
+
       // 2️⃣ Upload images
       if (files.length > 0) {
+        setUploadProgress(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`); // ✅ Stage 2
+
         const formData = new FormData();
         for (const file of files) {
           formData.append("images", file);
@@ -143,20 +153,28 @@ export default function NewListing() {
         });
 
         if (uploadRes.error) {
-          setError(uploadRes.error);
+          setError(`Listing created but image upload failed: ${uploadRes.error}`);
           setLoading(false);
+          setUploadProgress("");
           return;
         }
+
+        // ✅ Images uploaded successfully
+        setUploadProgress(`✓ ${files.length} image${files.length > 1 ? 's' : ''} uploaded successfully!`);
       }
 
-      setSuccess("Listing created successfully!");
+      // ✅ Everything done!
+      setSuccess("🎉 Listing published successfully! Redirecting...");
+      setUploadProgress("");
+      
       setTimeout(() => {
         router.push("/host/dashboard");
-      }, 1500);
+      }, 2000);
     } catch (err) {
       console.error(err);
-      setError("Server error, please try again");
+      setError(err.message || "Server error, please try again");
       setLoading(false);
+      setUploadProgress("");
     }
   };
 
@@ -190,11 +208,22 @@ export default function NewListing() {
         )}
 
         {success && (
-          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg flex items-start gap-3">
+          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg flex items-start gap-3 animate-slide-in">
             <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-sm">{success}</p>
+            <p className="text-sm font-medium">{success}</p>
+          </div>
+        )}
+
+        {/* ✅ Upload Progress Indicator */}
+        {uploadProgress && !success && (
+          <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg flex items-start gap-3 animate-slide-in">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-sm font-medium text-blue-900">{uploadProgress}</p>
           </div>
         )}
 
@@ -487,7 +516,7 @@ export default function NewListing() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Creating Listing...
+                Processing...
               </span>
             ) : (
               "Create Listing"
@@ -513,6 +542,23 @@ export default function NewListing() {
           </div>
         </div>
       </div>
+
+      {/* ✅ Add animations */}
+      <style jsx>{`
+        @keyframes slide-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
