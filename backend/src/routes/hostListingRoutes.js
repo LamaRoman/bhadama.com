@@ -1,4 +1,4 @@
-import express from "express";
+import express from "express"; 
 import {
   createListing,
   getHostListings,
@@ -17,6 +17,8 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
+
+router.post("/", authMiddleware, createListing);
 
 // Listing CRUD operations
 router.post("/", createListing);

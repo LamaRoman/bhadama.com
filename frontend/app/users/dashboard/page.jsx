@@ -22,7 +22,7 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         // Fetch user profile
-        const profileData = await api("/api/profile");
+        const profileData = await api("/api/users/profile");
         if (profileData.error) {
           router.push("/auth/login");
           return;
@@ -30,7 +30,7 @@ export default function DashboardPage() {
         setUser(profileData);
 
         // Fetch user bookings
-        const bookingsData = await api("/api/bookings");
+        const bookingsData = await api("/api/bookings/user");
         
         if (Array.isArray(bookingsData)) {
           setBookings(bookingsData);
@@ -58,6 +58,11 @@ export default function DashboardPage() {
     );
   }
 
+  // Calculate stats based on new booking structure (bookingDate instead of startDate/endDate)
+  const now = new Date();
+  const upcomingBookings = bookings.filter(b => new Date(b.bookingDate) > now).length;
+  const completedBookings = bookings.filter(b => new Date(b.bookingDate) < now).length;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-5 py-8">
@@ -84,9 +89,7 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-4xl font-bold text-blue-600">
-              {bookings.filter((b) => new Date(b.startDate) > new Date()).length}
-            </p>
+            <p className="text-4xl font-bold text-blue-600">{upcomingBookings}</p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
@@ -98,9 +101,7 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-4xl font-bold text-green-600">
-              {bookings.filter((b) => new Date(b.endDate) < new Date()).length}
-            </p>
+            <p className="text-4xl font-bold text-green-600">{completedBookings}</p>
           </div>
         </div>
 
@@ -109,7 +110,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">My Bookings</h2>
             <button
-              onClick={() => router.push("/public")}
+              onClick={() => router.push("/public/listings")}
               className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-colors group"
             >
               Browse Listings
@@ -143,10 +144,10 @@ export default function DashboardPage() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings yet</h3>
               <p className="text-gray-600 mb-6">
-                Start exploring amazing places and make your first booking.
+                Start exploring amazing yards and make your first booking.
               </p>
               <button
-                onClick={() => router.push("/public")}
+                onClick={() => router.push("/public/listings")}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

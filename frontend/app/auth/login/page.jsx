@@ -1,9 +1,10 @@
 "use client";
 import { api } from "../../utils/api.js";
 import { useState } from "react";
-import { useAuth } from "../../../hooks/useAuth.js"
+import {useAuth} from "../../contexts/AuthContext.js"
 export default function LoginPage(){
-    const {login} = useAuth();
+    const { user,login, logout } = useAuth();
+    
     const [email,setEmail] = useState("");
     const [password,setPassword] = useState("");
     const [error,setError]=useState("");

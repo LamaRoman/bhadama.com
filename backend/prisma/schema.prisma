@@ -7,77 +7,139 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  profilePhoto  String?
-  lastNameChange   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  listings   Listing[]
-  bookings   Booking[]   // <-- opposite relation added
-}
-
-enum ListingStatus {
-  DRAFT
-  ACTIVE
-}
-
-model Listing {
-  id          Int           @id @default(autoincrement())
-  title       String
-  description String
-  price       Float
-  location    String
-  hostId      Int
-  host        User          @relation(fields: [hostId], references: [id])
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  status      ListingStatus @default(DRAFT) // NEW
-
-  availability Availability[]
-  bookings     Booking[]    // <-- opposite relation added
-  images       ListingImage[] // New relation
-}
-
-model ListingImage {
-  id          Int       @id @default(autoincrement())
-  listing     Listing   @relation(fields: [listingId],references:[id])
-  listingId   Int
-  url         String
-  isCover     Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-}
-
-model Availability {
-  id          Int      @id @default(autoincrement())
-  listing     Listing  @relation(fields: [listingId], references: [id])
-  listingId   Int
-  date        DateTime
-  isAvailable Boolean  @default(true)
-  
-}
-
-model Booking {
-  id          Int       @id @default(autoincrement())
-  listingId   Int
-  userId      Int
-  startDate   DateTime
-  endDate     DateTime
-  createdAt   DateTime  @default(now())
-
-  listing     Listing   @relation(fields: [listingId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-}
+// ============= ENUMS =============
 
 enum Role {
   USER
   HOST
-  DEVELOPER
   ADMIN
+}
+
+enum ListingStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum PricingType {
+  HOURLY
+  HALF_DAY
+  FULL_DAY
+  CUSTOM
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+// ============= MODELS =============
+
+model User {
+  id             Int       @id @default(autoincrement())
+  name           String
+  email          String    @unique
+  password       String
+  role           Role      @default(USER)
+  profilePhoto   String?
+  lastNameChange DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  listings Listing[]
+  bookings Booking[]
+}
+
+model Listing {
+  id          Int           @id @default(autoincrement())
+  hostId      Int
+  title       String
+  description String?
+  location    String
+  
+  // Pricing options
+  hourlyRate   Decimal?  @db.Decimal(10, 2)
+  halfDayRate  Decimal?  @db.Decimal(10, 2)
+  fullDayRate  Decimal?  @db.Decimal(10, 2)
+  
+  // Constraints
+  minHours     Int       @default(2)
+  maxHours     Int       @default(12)
+  
+  // Operating hours
+  operatingHours Json?
+  
+  // Amenities
+  amenities    String[]
+  capacity     Int?
+  
+  // Backward compatibility
+  price        Decimal   @default(0) @db.Decimal(10, 2)
+  
+  status      ListingStatus @default(ACTIVE)
+  createdAt   DateTime?     @default(now())
+  updatedAt   DateTime?     @updatedAt
+  
+  host         User            @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  images       ListingImage[]
+  bookings     Booking[]
+  
+  @@index([hostId])
+  @@index([status])
+}
+
+model ListingImage {
+  id        Int      @id @default(autoincrement())
+  listingId Int
+  url       String
+  isCover   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@index([listingId])
+}
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  listingId Int
+  
+  bookingDate DateTime
+  startTime   String
+  endTime     String
+  duration    Int
+  guests      Int
+  
+  pricingType PricingType
+  pricePerUnit Decimal     @db.Decimal(10, 2)
+  totalPrice  Decimal      @db.Decimal(10, 2)
+  
+  status      BookingStatus @default(PENDING)
+  
+  specialRequests String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([listingId])
+  @@index([bookingDate])
+  @@index([status])
+}
+
+model BlockedDate {
+  id        Int      @id @default(autoincrement())
+  listingId Int
+  date      DateTime
+  reason    String?
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([listingId, date])
 }

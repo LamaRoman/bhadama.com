@@ -7,7 +7,7 @@ import crypto from "crypto";
 
 /**
  * Get user profile
- * GET /api/profile
+ * GET /api/users/profile
  */
 export async function getProfile(req, res) {
   try {
@@ -149,15 +149,17 @@ export async function uploadProfilePhoto(req, res) {
     );
 
     // Delete old photo from S3 if it exists
-    if (currentUser.profilePhoto && currentUser.profilePhoto.includes('s3.amazonaws.com')) {
+    if (currentUser.profilePhoto && currentUser.profilePhoto.includes('amazonaws.com')) {
       try {
         // Extract the S3 key from the URL
-        const oldKey = currentUser.profilePhoto.split('.com/')[1];
-        if (oldKey) {
+        const parts = currentUser.profilePhoto.split('.amazonaws.com/');
+        
+        if (parts.length === 2) {
+          const oldKey = decodeURIComponent(parts[1]);
           await deleteFromS3(oldKey);
         }
       } catch (deleteErr) {
-        console.error("Failed to delete old photo:", deleteErr);
+        console.error("Failed to delete old photo:", deleteErr.message);
         // Continue anyway - don't fail the upload if delete fails
       }
     }
@@ -175,6 +177,52 @@ export async function uploadProfilePhoto(req, res) {
   } catch (err) {
     console.error("UPLOAD PHOTO ERROR:", err);
     res.status(500).json({ error: "Failed to upload photo" });
+  }
+}
+
+/**
+ * Remove profile photo from AWS S3
+ * DELETE /api/users/remove-photo
+ */
+export async function removeProfilePhoto(req, res) {
+  try {
+    const userId = req.user.userId;
+
+    // Get current user
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { profilePhoto: true },
+    });
+
+    if (!currentUser.profilePhoto) {
+      return res.status(400).json({ error: "No profile photo to remove" });
+    }
+
+    // Delete from S3 if it's an S3 URL
+    if (currentUser.profilePhoto.includes('amazonaws.com')) {
+      try {
+        const parts = currentUser.profilePhoto.split('.amazonaws.com/');
+        
+        if (parts.length === 2) {
+          const key = decodeURIComponent(parts[1]);
+          await deleteFromS3(key);
+        }
+      } catch (deleteErr) {
+        console.error("Failed to delete photo from S3:", deleteErr);
+        // Continue anyway - still remove from database
+      }
+    }
+
+    // Remove photo URL from database
+    await prisma.user.update({
+      where: { id: userId },
+      data: { profilePhoto: null },
+    });
+
+    res.json({ message: "Profile photo removed successfully" });
+  } catch (err) {
+    console.error("REMOVE PHOTO ERROR:", err);
+    res.status(500).json({ error: "Failed to remove photo" });
   }
 }
 
@@ -263,10 +311,11 @@ export async function deleteUser(req, res) {
     }
 
     // Delete profile photo from S3 if exists
-    if (user.profilePhoto && user.profilePhoto.includes('s3.amazonaws.com')) {
+    if (user.profilePhoto && user.profilePhoto.includes('amazonaws.com')) {
       try {
-        const key = user.profilePhoto.split('.com/')[1];
-        if (key) {
+        const parts = user.profilePhoto.split('.amazonaws.com/');
+        if (parts.length === 2) {
+          const key = decodeURIComponent(parts[1]);
           await deleteFromS3(key);
         }
       } catch (deleteErr) {

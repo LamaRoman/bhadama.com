@@ -43,6 +43,7 @@ export async function getPublicListings(filters = {}) {
         select: {
           id: true,
           name: true,
+          profilePhoto: true,  // ← ADDED
         },
       },
     },
@@ -67,6 +68,7 @@ export async function getPublicListingById(listingId) {
         select: {
           id: true,
           name: true,
+          profilePhoto: true,  // ← ADDED
         },
       },
       availability: {
@@ -93,6 +95,7 @@ export async function getFeaturedListings(limit = 6) {
         select: {
           id: true,
           name: true,
+          profilePhoto: true,  // ← ADDED
         },
       },
       _count: {
@@ -126,6 +129,7 @@ export async function getListingsByLocation(location) {
         select: {
           id: true,
           name: true,
+          profilePhoto: true,  // ← ADDED
         },
       },
     },
@@ -154,6 +158,7 @@ export async function searchListings(query) {
         select: {
           id: true,
           name: true,
+          profilePhoto: true,  // ← ADDED
         },
       },
     },

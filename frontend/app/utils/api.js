@@ -11,6 +11,7 @@ export async function api(url, options = {}) {
     // Only set Content-Type if not FormData (browser sets it automatically for FormData)
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
   };
+  
 
   const fetchOptions = {
     method: options.method || "GET",

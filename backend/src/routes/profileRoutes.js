@@ -4,8 +4,9 @@ import * as controller from "../controllers/profileController.js";
 
 const router = express.Router();
 
+
 // Get current user's profile
-router.get("/", authMiddleware, controller.getProfile);
+router.get("/profile", authMiddleware, controller.getProfile);
 
 // Update current user's profile
 router.put("/", authMiddleware, controller.updateProfile);

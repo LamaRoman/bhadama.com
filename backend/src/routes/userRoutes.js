@@ -5,6 +5,8 @@ import * as controller from "../controllers/userController.js";
 
 const router = express.Router();
 
+
+
 // Get user profile
 router.get("/profile", authMiddleware, controller.getProfile);
 
@@ -19,6 +21,7 @@ router.post(
   controller.uploadProfilePhoto
 );
 
+router.delete("/remove-photo", authMiddleware, controller.removeProfilePhoto);
 // Change password
 router.put("/change-password", authMiddleware, controller.changePassword);
 

@@ -5,66 +5,22 @@ import * as controller from "../controllers/bookingController.js";
 
 const router = express.Router();
 
-// ==================== USER ROUTES ==================== //
+// Create booking
+router.post("/", authMiddleware, controller.createBooking);
 
-// Create new booking(s)
-router.post(
-  "/",
-  authMiddleware,
-  roleMiddleware(["USER"]),
-  controller.createBooking
-);
+// Get available time slots for a listing (public or auth - your choice)
+router.get("/availability/:listingId", controller.getAvailability);
 
 // Get user's bookings
-router.get(
-  "/",
-  authMiddleware,
-  controller.getUserBookings
-);
+router.get("/user", authMiddleware, controller.getUserBookings);
 
-// Get upcoming bookings (must be before /:id)
-router.get(
-  "/upcoming",
-  authMiddleware,
-  controller.getUpcomingBookings
-);
+// Get host's bookings
+router.get("/host", authMiddleware, roleMiddleware(["HOST", "ADMIN"]), controller.getHostBookings);
 
-// Get past bookings (must be before /:id)
-router.get(
-  "/past",
-  authMiddleware,
-  controller.getPastBookings
-);
+// Cancel booking
+router.put("/:id/cancel", authMiddleware, controller.cancelBooking);
 
-// Get a specific booking
-router.get(
-  "/:id",
-  authMiddleware,
-  controller.getBookingById
-);
-
-// Update a booking
-router.put(
-  "/:id",
-  authMiddleware,
-  controller.updateBooking
-);
-
-// Cancel a booking
-router.delete(
-  "/:id",
-  authMiddleware,
-  controller.cancelBooking
-);
-
-// ==================== HOST ROUTES ==================== //
-
-// Get bookings for a specific listing (for hosts)
-router.get(
-  "/listing/:listingId",
-  authMiddleware,
-  roleMiddleware(["HOST"]),
-  controller.getListingBookings
-);
+// Get booking by ID
+router.get("/:id", authMiddleware, controller.getBookingById);
 
 export default router;

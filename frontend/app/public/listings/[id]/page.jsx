@@ -324,20 +324,30 @@ export default function PublicListingBooking() {
               </p>
             </div>
 
-            {/* Host Info */}
-            <div className="border-y border-gray-200 py-6">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">
-                  {listing.host?.name?.charAt(0).toUpperCase() || "H"}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-lg">
-                    Hosted by {listing.host?.name || "Host"}
-                  </p>
-                  <p className="text-sm text-gray-500">Superhost</p>
-                </div>
-              </div>
-            </div>
+          {/* Host Info */}
+<div className="border-y border-gray-200 py-6">
+  <div className="flex items-center gap-4">
+    <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+      {listing.host?.profilePhoto ? (
+        <img
+          src={listing.host.profilePhoto}
+          alt={listing.host.name}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-white font-bold text-xl">
+          {listing.host?.name?.charAt(0).toUpperCase() || "H"}
+        </span>
+      )}
+    </div>
+    <div>
+      <p className="font-semibold text-gray-900 text-lg">
+        Hosted by {listing.host?.name || "Host"}
+      </p>
+      <p className="text-sm text-gray-500">Superhost</p>
+    </div>
+  </div>
+</div>
 
             {/* Description */}
             <div>
