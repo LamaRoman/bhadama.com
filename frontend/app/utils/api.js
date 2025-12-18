@@ -37,7 +37,7 @@ export async function api(url, options = {}) {
 
     return data;
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     return { error: "Network or server error" };
   }
 }

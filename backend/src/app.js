@@ -1,50 +1,33 @@
-import 'dotenv/config';
 import express from "express";
-import cors from "cors"
+import 'dotenv/config';
+import cors from "cors";
+
 import authRoutes from "./routes/auth.js";
-import userBookingRoutes from "./routes/usersBookingRoutes.js";
-import admin from "./routes/admin.js";
+import hostListingRoutes from "./routes/hostListingRoutes.js";
 import publicListingRoutes from "./routes/publicListingRoutes.js";
-import hostListingsRoutes from "./routes/hostListingRoutes.js"
-import availabilityRoutes from "./routes/availabilityRoutes.js"
-import userProfileRoutes from "./routes/profileRoutes.js"
-import bookingRoutes from "./routes/bookingRoutes.js"
+import availabilityRoutes from "./routes/availabilityRoutes.js";
 
 const app = express();
-app.use(express.json())
+
+// Middleware
+app.use(express.json());
 app.use(cors({
-  origin: "http://localhost:3000",
-  credentials: true,
+  origin: "http://localhost:3000", // frontend origin
+  credentials: true,               // allow cookies/credentials
 }));
 
-
-
 // Routes
-app.use("/api/auth",authRoutes);
-app.use("/api/usersBooking",userBookingRoutes);
-app.use("/api/host/listings",hostListingsRoutes);
-app.use("/api/admin",admin);
-app.use("/api/publicListings",publicListingRoutes);
-app.use("/api/availability",availabilityRoutes);
-app.use("/api/userBookings",userBookingRoutes);
-app.use("/api/users",userProfileRoutes);
-app.use("/api/bookings",bookingRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/host/listings", hostListingRoutes);
+app.use("/api/publicListings", publicListingRoutes);
+app.use("/api/availability", availabilityRoutes);
 
 // Test route
 app.get("/", (req, res) => {
-  res.send("Hello! Server is working.");
+  res.send("Hello! myBigYard Server is working. 🏡");
 });
 
-//Testing
-/*
-app.post("/signup", async (req, res) => {
-  const { name, email, password, role } = req.body;
-  res.json({ success: true, received: { name, email, password, role } });
-});
-*/
-
-
-const PORT = process.env.PORT; 
+const PORT = process.env.PORT || 5000; 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

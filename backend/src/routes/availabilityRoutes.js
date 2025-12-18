@@ -5,30 +5,32 @@ import * as controller from "../controllers/availabilityController.js";
 
 const router = express.Router();
 
-// ==================== PUBLIC ROUTES ==================== //
+// IMPORTANT: More specific routes must come BEFORE parameterized routes
+// Otherwise /:listingId will catch everything
 
-// Get availability for a listing (public - for booking calendar)
+// Public routes - anyone can check availability
+router.post("/check", controller.checkSlotAvailability);
+
+// These specific routes must come before /:listingId
+router.get("/:listingId/dates", controller.getBookedDates);
+router.get("/:listingId/summary", controller.getAvailabilitySummary);
+
+// Protected routes - HOST only (specific routes)
+router.post(
+  "/:listingId/block",
+  authMiddleware,
+  roleMiddleware(["HOST", "ADMIN"]),
+  controller.blockDate
+);
+
+router.delete(
+  "/blocked/:blockedDateId",
+  authMiddleware,
+  roleMiddleware(["HOST", "ADMIN"]),
+  controller.unblockDate
+);
+
+// General availability (should be last as it's most generic)
 router.get("/:listingId", controller.getAvailability);
-
-// Get blocked dates for a listing
-router.get("/:listingId/blocked", controller.getBlockedDates);
-
-// ==================== HOST ROUTES ==================== //
-
-// Create new availability dates
-router.post(
-  "/:listingId",
-  authMiddleware,
-  roleMiddleware(["HOST"]),
-  controller.createAvailability
-);
-
-// Toggle availability for a specific date
-router.post(
-  "/toggle",
-  authMiddleware,
-  roleMiddleware(["HOST"]),
-  controller.toggleAvailability
-);
 
 export default router;

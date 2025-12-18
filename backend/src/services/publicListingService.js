@@ -1,8 +1,9 @@
 import { prisma } from "../config/prisma.js";
 
+
 /**
  * Get all public listings with filters
- * @param {Object} filters - Optional filters (location, minPrice, maxPrice, etc.)
+ * @param {Object} filters - Optional filters (location, minPrice, maxPrice, search)
  * @returns {Promise<Array>} - Array of listings
  */
 export async function getPublicListings(filters = {}) {
@@ -20,19 +21,39 @@ export async function getPublicListings(filters = {}) {
     };
   }
 
+  // Combine price & search filters
+  const orFilters = [];
+
   // Price filters
   if (minPrice || maxPrice) {
-    where.price = {};
-    if (minPrice) where.price.gte = parseFloat(minPrice);
-    if (maxPrice) where.price.lte = parseFloat(maxPrice);
+    if (minPrice) {
+      const min = parseFloat(minPrice);
+      orFilters.push(
+        { hourlyRate: { gte: min } },
+        { halfDayRate: { gte: min } },
+        { fullDayRate: { gte: min } }
+      );
+    }
+    if (maxPrice) {
+      const max = parseFloat(maxPrice);
+      orFilters.push(
+        { hourlyRate: { lte: max } },
+        { halfDayRate: { lte: max } },
+        { fullDayRate: { lte: max } }
+      );
+    }
   }
 
   // Search filter (title or description)
   if (search) {
-    where.OR = [
+    orFilters.push(
       { title: { contains: search, mode: "insensitive" } },
-      { description: { contains: search, mode: "insensitive" } },
-    ];
+      { description: { contains: search, mode: "insensitive" } }
+    );
+  }
+
+  if (orFilters.length) {
+    where.OR = orFilters;
   }
 
   return prisma.listing.findMany({
@@ -43,13 +64,14 @@ export async function getPublicListings(filters = {}) {
         select: {
           id: true,
           name: true,
-          profilePhoto: true,  // ← ADDED
+          profilePhoto: true,
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 }
+
 
 /**
  * Get a single public listing by ID

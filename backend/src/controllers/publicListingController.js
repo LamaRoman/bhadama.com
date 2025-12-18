@@ -28,23 +28,21 @@ export async function getListings(req, res) {
 export async function getListingById(req, res) {
   try {
     const listingId = Number(req.params.id);
-
-    if (isNaN(listingId)) {
-      return res.status(400).json({ error: "Invalid listing ID" });
-    }
+    if (isNaN(listingId)) return res.status(400).json({ error: "Invalid listing ID" });
 
     const listing = await publicListingService.getPublicListingById(listingId);
+    if (!listing) return res.status(404).json({ error: "Listing not found" });
 
-    if (!listing) {
-      return res.status(404).json({ error: "Listing not found" });
-    }
+    // Get booked slots (availability)
+    const bookedSlots = await availabilityService.getBookedSlots(listingId);
 
-    res.json(listing);
+    res.json({ ...listing, bookedSlots });
   } catch (err) {
     console.error("GET PUBLIC LISTING ERROR:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: err.message || "Server error" });
   }
 }
+
 
 /**
  * Get featured listings
