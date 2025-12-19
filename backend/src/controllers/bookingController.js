@@ -4,6 +4,7 @@ import * as bookingService from "../services/bookingService.js";
  * Create a new booking
  * POST /api/bookings
  */
+
 export async function createBooking(req, res) {
   try {
     const userId = req.user.userId;

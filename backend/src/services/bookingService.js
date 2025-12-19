@@ -1,81 +1,78 @@
 // services/bookingService.js
 import { prisma } from "../config/prisma.js";
 
-/**
- * Create a new booking for hourly rental
- * @param {Object} bookingData - { userId, listingId, bookingDate, startTime, endTime, guests }
- */
+import { Decimal } from "@prisma/client/runtime/library"; // Add this import
+
+// ... other imports
+
 export async function createBooking(bookingData) {
   const { userId, listingId, bookingDate, startTime, endTime, guests, specialRequests } = bookingData;
 
-  // 1. Get listing details (HOURLY ONLY - removed halfDayRate and fullDayRate)
+  // 1. Validate listing exists
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    select: {
-      hourlyRate: true,
-      minHours: true,
-      maxHours: true,
-      operatingHours: true,
-      capacity: true,
-      minCapacity: true,
-      includedGuests: true,
-      extraGuestCharge: true,
-      status: true,
-    },
+    include: {
+      host: true,
+      images: true
+    }
   });
 
-  if (!listing || listing.status !== "ACTIVE") {
-    throw new Error("Listing not available");
+  if (!listing) {
+    throw new Error("Listing not found");
   }
 
-  // 2. Calculate duration in hours
-  const start = parseTime(startTime);
-  const end = parseTime(endTime);
-  const duration = (end - start) / 60; // minutes to hours
-
-  if (duration < listing.minHours) {
-    throw new Error(`Minimum booking is ${listing.minHours} hours`);
-  }
-
-  if (duration > listing.maxHours) {
-    throw new Error(`Maximum booking is ${listing.maxHours} hours`);
-  }
-
-  // 3. Check guest count
-  if (guests < listing.minCapacity) {
-    throw new Error(`Minimum ${listing.minCapacity} guest${listing.minCapacity > 1 ? 's' : ''} required`);
-  }
-
-  if (guests > listing.capacity) {
-    throw new Error(`Maximum capacity is ${listing.capacity} guests`);
-  }
-
-  // 4. Check for time slot conflicts
+  // 2. Check time slot availability
   const hasConflict = await checkTimeConflict(listingId, bookingDate, startTime, endTime);
   if (hasConflict) {
-    throw new Error("This time slot is already booked");
+    throw new Error("Time slot not available");
   }
 
-  // 5. Calculate price (HOURLY ONLY)
-  const basePrice = parseFloat(listing.hourlyRate) * duration;
+  // 3. Validate guests count
+  if (guests > listing.maxGuests) {
+    throw new Error(`Maximum ${listing.maxGuests} guests allowed`);
+  }
+
+  if (guests < listing.minGuests) {
+    throw new Error(`Minimum ${listing.minGuests} guests required`);
+  }
+
+  // 4. Calculate duration from startTime and endTime
+  const startMinutes = parseTime(startTime);
+  const endMinutes = parseTime(endTime);
+  const duration = (endMinutes - startMinutes) / 60; // Convert minutes to hours
+  
+  // Validate duration
+  if (duration <= 0) {
+    throw new Error("End time must be after start time");
+  }
+  
+  if (duration < listing.minHours) {
+    throw new Error(`Minimum booking duration is ${listing.minHours} hours`);
+  }
+
+  // 5. Calculate prices and convert to Decimal
+  const hourlyRate = new Decimal(listing.hourlyRate || 0); // Fixed: use listing.hourlyRate, not listingId.hourlyRate
+  const basePrice = hourlyRate.times(new Decimal(duration));
   
   // Calculate extra guest charges
-  let extraGuestPrice = 0;
-  if (listing.extraGuestCharge && guests > listing.includedGuests) {
-    const extraGuests = guests - listing.includedGuests;
-    extraGuestPrice = parseFloat(listing.extraGuestCharge) * extraGuests * duration;
+  const includedGuests = listing.includedGuests || 10;
+  const extraGuestCharge = new Decimal(listing.extraGuestCharge || 0);
+  let extraGuestPrice = new Decimal(0);
+  
+  if (extraGuestCharge.greaterThan(0) && guests > includedGuests) {
+    const extraGuests = guests - includedGuests;
+    extraGuestPrice = extraGuestCharge.times(new Decimal(extraGuests)).times(new Decimal(duration));
   }
 
-  // Calculate fees (example: 10% service fee)
-  const serviceFee = basePrice * 0.10;
-  const tax = (basePrice + extraGuestPrice + serviceFee) * 0.08; // 8% tax
-
-  const totalPrice = basePrice + extraGuestPrice + serviceFee + tax;
+  // Calculate fees
+  const serviceFee = basePrice.times(new Decimal(0.10));
+  const tax = basePrice.plus(extraGuestPrice).plus(serviceFee).times(new Decimal(0.08));
+  const totalPrice = basePrice.plus(extraGuestPrice).plus(serviceFee).plus(tax);
 
   // 6. Generate booking number
   const bookingNumber = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-  // 7. Create booking (HOURLY ONLY - removed pricingType)
+  // 7. Create booking with Decimal values
   const booking = await prisma.booking.create({
     data: {
       userId,
@@ -83,7 +80,7 @@ export async function createBooking(bookingData) {
       bookingDate: new Date(bookingDate),
       startTime,
       endTime,
-      duration: Math.round(duration * 100) / 100, // Round to 2 decimal places
+      duration: new Decimal(duration.toFixed(2)),
       guests,
       basePrice,
       extraGuestPrice,
@@ -93,7 +90,7 @@ export async function createBooking(bookingData) {
       specialRequests,
       bookingNumber,
       status: "CONFIRMED",
-      paymentStatus: "pending", // Will be updated after payment
+      paymentStatus: "pending",
     },
     include: {
       listing: {
@@ -112,7 +109,6 @@ export async function createBooking(bookingData) {
 
   return booking;
 }
-
 /**
  * Check if time slot has conflicts
  */
@@ -152,11 +148,23 @@ async function checkTimeConflict(listingId, bookingDate, startTime, endTime) {
 /**
  * Parse time string (HH:MM) to minutes since midnight
  */
+// FIX: Update parseTime function to handle invalid time strings
 function parseTime(timeStr) {
+  if (!timeStr || !timeStr.includes(':')) {
+    console.error('Invalid time string:', timeStr);
+    return 0; // Return 0 instead of NaN
+  }
+  
   const [hours, minutes] = timeStr.split(":").map(Number);
+  
+  // Check if parsing resulted in valid numbers
+  if (isNaN(hours) || isNaN(minutes)) {
+    console.error('Failed to parse time:', timeStr);
+    return 0;
+  }
+  
   return hours * 60 + minutes;
 }
-
 /**
  * Get available time slots for a listing on a specific date
  */

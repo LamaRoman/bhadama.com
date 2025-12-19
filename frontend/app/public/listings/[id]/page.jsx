@@ -564,12 +564,15 @@ export default function PublicListingDetail() {
     return true;
   };
 
-  const handleBooking = async () => {
+   const handleBooking = async () => {
     if (!validateBooking()) return;
 
     setIsBooking(true);
 
     try {
+      // Calculate duration here to show in the request
+      const duration = calculateDuration();
+      
       const data = await api("/api/bookings", {
         method: "POST",
         body: {
@@ -579,7 +582,11 @@ export default function PublicListingDetail() {
           startTime: bookingData.startTime,
           endTime: bookingData.endTime,
           guests: bookingData.guests,
-          totalPrice: calculateTotal(),
+          specialRequests: "", // Add this if you have special requests field
+          // Don't send totalPrice - backend will calculate it
+        },
+        headers: {
+          'Content-Type': 'application/json',
         },
       });
 
@@ -606,6 +613,7 @@ export default function PublicListingDetail() {
         router.push("/bookings");
       }, 2000);
     } catch (err) {
+      console.error("Booking error:", err);
       toast.error(err.message || "Booking failed. Please try again.");
     } finally {
       setIsBooking(false);
@@ -1699,7 +1707,7 @@ export default function PublicListingDetail() {
           {/* RIGHT COLUMN - Booking Card */}
           <div className="lg:col-span-1">
             <div className="sticky top-8">
-              <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 ">
                 {/* Price Header */}
                 <div className="p-6 border-b border-stone-200">
                   <div className="flex items-baseline gap-2 mb-1">
