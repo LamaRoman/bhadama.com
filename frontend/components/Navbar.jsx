@@ -8,7 +8,9 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -21,7 +23,7 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="bg-white border-b border-gray-200">
+    <nav className="bg-white border-b border-gray-200 h-20">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo - Links to listings page */}
         <Link 
@@ -32,8 +34,8 @@ export default function Navbar() {
             src="/images/mybigyard-logo-navbar.svg"
             alt="myBigYard.com"
             width={220}
-            height={55}
-            className="h-12 w-auto"
+            height={80}
+            className="h-20 w-auto"
             priority
           />
         </Link>

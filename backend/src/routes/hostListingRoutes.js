@@ -1,6 +1,5 @@
 import express from "express";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { roleMiddleware } from "../middleware/roleMiddleware.js";
+import { authenticate, authorize } from "../middleware/authMiddleware.js";
 import { upload, handleMulterError } from "../middleware/multer.js";
 
 import {
@@ -17,8 +16,8 @@ import {
 
 const router = express.Router();
 
-router.use(authMiddleware);
-router.use(roleMiddleware(["HOST"]));
+router.use(authenticate);
+router.use(authorize(["HOST"]));
 
 // Listings
 router.post("/", createListing);

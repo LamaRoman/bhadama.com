@@ -45,51 +45,109 @@ export const uploadImages = async (req, res) => {
 };
 
 
+
+// Helper function to generate slug
+const generateSlug = (title) => {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
+    + '-' + Date.now();
+};
+
 export const createListing = async (req, res) => {
   try {
+    console.log("📝 Creating listing with data:", req.body);
+    console.log("👤 Host ID:", req.user.userId);
+    
     const { 
       title, 
       description, 
       location, 
       status,
       hourlyRate,
-      halfDayRate,
-      fullDayRate,
       minHours,
       maxHours,
       amenities,
       capacity,
-      operatingHours
+      operatingHours,
+      address,
+      includedGuests,
+      extraGuestCharge,
+      minCapacity,
+      size,
+      rules,
+      featured
     } = req.body;
     
-    const hostId = req.user.userId; // ← Fixed: JWT sets userId, not id
+    const hostId = req.user.userId;
 
-    // Validate at least one rate is provided
-    if (!hourlyRate && !halfDayRate && !fullDayRate) {
-      return res.status(400).json({ 
-        error: "At least one pricing option (hourly, half-day, or full-day) is required" 
-      });
+    // Validate required fields from schema
+    if (!title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+    if (!location) {
+      return res.status(400).json({ error: "Location is required" });
+    }
+    if (!hourlyRate) {
+      return res.status(400).json({ error: "Hourly rate is required" });
+    }
+    if (!capacity) {
+      return res.status(400).json({ error: "Capacity is required" });
     }
 
-    const listing = await prisma.listing.create({
-      data: {
-        title,
-        description,
-        location,
-        status: status || "ACTIVE",
-        hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
-        halfDayRate: halfDayRate ? parseFloat(halfDayRate) : null,
-        fullDayRate: fullDayRate ? parseFloat(fullDayRate) : null,
-        minHours: minHours ? parseInt(minHours) : 2,
-        maxHours: maxHours ? parseInt(maxHours) : 12,
-        amenities: amenities || [],
-        capacity: capacity ? parseInt(capacity) : null,
-        operatingHours: operatingHours || null,
-        price: hourlyRate ? parseFloat(hourlyRate) : 0, // Backward compatibility
-        host: {
-          connect: { id: hostId },
-        },
+    // Generate slug from title
+    const slug = generateSlug(title);
+
+    // Prepare data exactly as schema requires
+    const listingData = {
+      // Required fields (from schema)
+      title,
+      slug,
+      location,
+      hourlyRate: parseFloat(hourlyRate),
+      capacity: parseInt(capacity),
+      
+      // Optional fields with defaults
+      description: description || "",
+      address: address || null,
+      includedGuests: includedGuests ? parseInt(includedGuests) : 10,
+      extraGuestCharge: extraGuestCharge ? parseFloat(extraGuestCharge) : null,
+      minCapacity: minCapacity ? parseInt(minCapacity) : 1,
+      size: size || null,
+      minHours: minHours ? parseInt(minHours) : 1,
+      maxHours: maxHours ? parseInt(maxHours) : 12,
+      status: status || "ACTIVE",
+      featured: featured || false,
+      views: 0,
+      
+      // Arrays with defaults
+      amenities: amenities || [],
+      rules: rules || [],
+      
+      // JSON field
+      operatingHours: operatingHours || {
+        monday: { start: "08:00", end: "20:00", closed: false },
+        tuesday: { start: "08:00", end: "20:00", closed: false },
+        wednesday: { start: "08:00", end: "20:00", closed: false },
+        thursday: { start: "08:00", end: "20:00", closed: false },
+        friday: { start: "08:00", end: "20:00", closed: false },
+        saturday: { start: "08:00", end: "20:00", closed: false },
+        sunday: { start: "08:00", end: "20:00", closed: false }
       },
+      
+      // Connect host (required relation)
+      host: {
+        connect: { id: hostId }
+      }
+    };
+
+    console.log("📦 Prepared listing data:", listingData);
+
+    const listing = await prisma.listing.create({
+      data: listingData,
       include: {
         images: true,
         host: {
@@ -102,10 +160,27 @@ export const createListing = async (req, res) => {
       }
     });
 
+    console.log("✅ Listing created successfully:", listing.id);
+
     res.status(201).json(listing);
   } catch (error) {
-    console.error("CREATE LISTING ERROR:", error);
-    res.status(400).json({ error: error.message });
+    console.error("❌ CREATE LISTING ERROR:", error);
+    console.error("❌ Error details:", error.message);
+    
+    // Handle specific errors
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0];
+      if (field === 'slug') {
+        return res.status(400).json({ 
+          error: "A listing with this title already exists. Please try a different title." 
+        });
+      }
+    }
+    
+    res.status(400).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 

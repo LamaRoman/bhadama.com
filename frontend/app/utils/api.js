@@ -11,7 +11,6 @@ export async function api(url, options = {}) {
     // Only set Content-Type if not FormData (browser sets it automatically for FormData)
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
   };
-  
 
   const fetchOptions = {
     method: options.method || "GET",
@@ -23,21 +22,36 @@ export async function api(url, options = {}) {
     credentials: "include",
   };
 
+  // Remove body for GET/HEAD requests
+  if (["GET", "HEAD"].includes(fetchOptions.method)) {
+    delete fetchOptions.body;
+  }
+
   try {
     const res = await fetch(`http://localhost:5001${url}`, fetchOptions);
 
-    // If no content, return empty object
-    if (res.status === 204) return {};
-
-    // Try to parse JSON
-    const data = await res.json();
-    if (!res.ok) {
-      return { error: data.error || data.message || "Unknown error" };
+    // Handle no content
+    if (res.status === 204) {
+      return {};
     }
 
+    // Handle HTTP errors
+    if (!res.ok) {
+      let errorData;
+      try {
+        errorData = await res.json();
+      } catch {
+        errorData = { error: `HTTP ${res.status}` };
+      }
+      throw new Error(errorData.error || errorData.message || "Request failed");
+    }
+
+    // Parse successful response
+    const data = await res.json();
     return data;
   } catch (err) {
-    console.error(err);
-    return { error: "Network or server error" };
+    console.error("API Error:", err);
+    // Re-throw to allow component-level error handling
+    throw err;
   }
 }

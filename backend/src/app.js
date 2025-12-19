@@ -1,3 +1,4 @@
+// server.js or app.js
 import express from "express";
 import 'dotenv/config';
 import cors from "cors";
@@ -6,24 +7,29 @@ import authRoutes from "./routes/auth.js";
 import hostListingRoutes from "./routes/hostListingRoutes.js";
 import publicListingRoutes from "./routes/publicListingRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
-import userRoutes from "./routes/userRoutes.js"
-import bookingRoutes from "./routes/bookingRoutes.js"
+import userRoutes from "./routes/userRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
+import adminRoutes from './routes/adminRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
+
 const app = express();
 
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: "http://localhost:3000", // frontend origin
-  credentials: true,               // allow cookies/credentials
+  origin: "http://localhost:3000",
+  credentials: true,
 }));
 
-// Routes
+// Routes - Register each only ONCE
 app.use("/api/auth", authRoutes);
 app.use("/api/host/listings", hostListingRoutes);
 app.use("/api/publicListings", publicListingRoutes);
 app.use("/api/availability", availabilityRoutes);
-app.use("/api/users",userRoutes);
-app.use("/api/bookings",bookingRoutes)
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes); // ← ONLY ONCE!
 
 // Test route
 app.get("/", (req, res) => {

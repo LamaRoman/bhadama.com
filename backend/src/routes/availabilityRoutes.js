@@ -1,6 +1,5 @@
 import express from "express";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { roleMiddleware } from "../middleware/roleMiddleware.js";
+import { authenticate, authorize } from "../middleware/authMiddleware.js";
 import * as controller from "../controllers/availabilityController.js";
 
 const router = express.Router();
@@ -18,15 +17,15 @@ router.get("/:listingId/summary", controller.getAvailabilitySummary);
 // Protected routes - HOST only (specific routes)
 router.post(
   "/:listingId/block",
-  authMiddleware,
-  roleMiddleware(["HOST", "ADMIN"]),
+  authenticate,
+  authorize(["HOST", "ADMIN"]),
   controller.blockDate
 );
 
 router.delete(
   "/blocked/:blockedDateId",
-  authMiddleware,
-  roleMiddleware(["HOST", "ADMIN"]),
+  authenticate,
+  authorize(["HOST", "ADMIN"]),
   controller.unblockDate
 );
 

@@ -1,23 +1,25 @@
+// services/bookingService.js
 import { prisma } from "../config/prisma.js";
 
 /**
  * Create a new booking for hourly rental
- * @param {Object} bookingData - { userId, listingId, bookingDate, startTime, endTime, guests, pricingType }
+ * @param {Object} bookingData - { userId, listingId, bookingDate, startTime, endTime, guests }
  */
 export async function createBooking(bookingData) {
-  const { userId, listingId, bookingDate, startTime, endTime, guests, pricingType, specialRequests } = bookingData;
+  const { userId, listingId, bookingDate, startTime, endTime, guests, specialRequests } = bookingData;
 
-  // 1. Get listing details
+  // 1. Get listing details (HOURLY ONLY - removed halfDayRate and fullDayRate)
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     select: {
       hourlyRate: true,
-      halfDayRate: true,
-      fullDayRate: true,
       minHours: true,
       maxHours: true,
       operatingHours: true,
       capacity: true,
+      minCapacity: true,
+      includedGuests: true,
+      extraGuestCharge: true,
       status: true,
     },
   });
@@ -39,8 +41,12 @@ export async function createBooking(bookingData) {
     throw new Error(`Maximum booking is ${listing.maxHours} hours`);
   }
 
-  // 3. Check capacity
-  if (guests && listing.capacity && guests > listing.capacity) {
+  // 3. Check guest count
+  if (guests < listing.minCapacity) {
+    throw new Error(`Minimum ${listing.minCapacity} guest${listing.minCapacity > 1 ? 's' : ''} required`);
+  }
+
+  if (guests > listing.capacity) {
     throw new Error(`Maximum capacity is ${listing.capacity} guests`);
   }
 
@@ -50,37 +56,26 @@ export async function createBooking(bookingData) {
     throw new Error("This time slot is already booked");
   }
 
-  // 5. Calculate price based on pricing type
-  let pricePerUnit = 0;
-  let finalPricingType = pricingType;
-
-  if (pricingType === "HOURLY" && listing.hourlyRate) {
-    pricePerUnit = parseFloat(listing.hourlyRate);
-  } else if (pricingType === "HALF_DAY" && listing.halfDayRate) {
-    pricePerUnit = parseFloat(listing.halfDayRate);
-  } else if (pricingType === "FULL_DAY" && listing.fullDayRate) {
-    pricePerUnit = parseFloat(listing.fullDayRate);
-  } else {
-    // Auto-select best pricing
-    if (duration >= 8 && listing.fullDayRate) {
-      finalPricingType = "FULL_DAY";
-      pricePerUnit = parseFloat(listing.fullDayRate);
-    } else if (duration >= 4 && listing.halfDayRate) {
-      finalPricingType = "HALF_DAY";
-      pricePerUnit = parseFloat(listing.halfDayRate);
-    } else if (listing.hourlyRate) {
-      finalPricingType = "HOURLY";
-      pricePerUnit = parseFloat(listing.hourlyRate);
-    } else {
-      throw new Error("No pricing available for this duration");
-    }
+  // 5. Calculate price (HOURLY ONLY)
+  const basePrice = parseFloat(listing.hourlyRate) * duration;
+  
+  // Calculate extra guest charges
+  let extraGuestPrice = 0;
+  if (listing.extraGuestCharge && guests > listing.includedGuests) {
+    const extraGuests = guests - listing.includedGuests;
+    extraGuestPrice = parseFloat(listing.extraGuestCharge) * extraGuests * duration;
   }
 
-  // Calculate total
-  const multiplier = finalPricingType === "HOURLY" ? duration : 1;
-  const totalPrice = pricePerUnit * multiplier;
+  // Calculate fees (example: 10% service fee)
+  const serviceFee = basePrice * 0.10;
+  const tax = (basePrice + extraGuestPrice + serviceFee) * 0.08; // 8% tax
 
-  // 6. Create booking
+  const totalPrice = basePrice + extraGuestPrice + serviceFee + tax;
+
+  // 6. Generate booking number
+  const bookingNumber = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+  // 7. Create booking (HOURLY ONLY - removed pricingType)
   const booking = await prisma.booking.create({
     data: {
       userId,
@@ -88,13 +83,17 @@ export async function createBooking(bookingData) {
       bookingDate: new Date(bookingDate),
       startTime,
       endTime,
-      duration: Math.round(duration),
-      guests: guests || 1,
-      pricingType: finalPricingType,
-      pricePerUnit,
+      duration: Math.round(duration * 100) / 100, // Round to 2 decimal places
+      guests,
+      basePrice,
+      extraGuestPrice,
+      serviceFee,
+      tax,
       totalPrice,
       specialRequests,
+      bookingNumber,
       status: "CONFIRMED",
+      paymentStatus: "pending", // Will be updated after payment
     },
     include: {
       listing: {
@@ -105,6 +104,9 @@ export async function createBooking(bookingData) {
           },
         },
       },
+      user: {
+        select: { id: true, name: true, email: true }
+      }
     },
   });
 

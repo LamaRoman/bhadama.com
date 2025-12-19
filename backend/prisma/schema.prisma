@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +10,6 @@ datasource db {
 }
 
 // ============= ENUMS =============
-
 enum Role {
   USER
   HOST
@@ -19,13 +20,7 @@ enum ListingStatus {
   ACTIVE
   INACTIVE
   PENDING
-}
-
-enum PricingType {
-  HOURLY
-  HALF_DAY
-  FULL_DAY
-  CUSTOM
+  SOLD_OUT
 }
 
 enum BookingStatus {
@@ -33,10 +28,26 @@ enum BookingStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+  NO_SHOW
+  REFUNDED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  BOOKING_CREATED
+  BOOKING_UPDATED
+  BOOKING_CANCELLED
+  NEW_REVIEW
+  MESSAGE
+  SYSTEM
 }
 
 // ============= MODELS =============
-
 model User {
   id             Int       @id @default(autoincrement())
   name           String
@@ -45,99 +56,191 @@ model User {
   role           Role      @default(USER)
   profilePhoto   String?
   lastNameChange DateTime?
+  phone          String?
+  bio            String?
+  isVerified     Boolean   @default(false)
+  stripeCustomerId String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  listings Listing[]
-  bookings Booking[]
-  images   Image[]   // ← User profile photos
+  // Relations - ADDED explicit relation names
+  listings      Listing[]
+  bookings      Booking[]
+  reviews       Review[]
+  sentMessages  Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  notifications Notification[]
+  savedListings SavedListing[]
+  helpfulReviews Review[] @relation("HelpfulReviews")
+  images        Image[]   @relation("UserImages")  // ADDED explicit relation name
+
+  @@index([email])
+  @@index([role])
 }
 
 model Listing {
-  id          Int           @id @default(autoincrement())
-  hostId      Int
-  title       String
-  description String?
-  location    String
+  id             Int           @id @default(autoincrement())
+  hostId         Int
+  title          String
+  slug           String        @unique
+  description    String?
+  location       String
+  address        String?
+  latitude       Decimal?      @db.Decimal(10, 8)
+  longitude      Decimal?      @db.Decimal(11, 8)
   
-  // Pricing options
-  hourlyRate   Decimal?  @db.Decimal(10, 2)
-  halfDayRate  Decimal?  @db.Decimal(10, 2)
-  fullDayRate  Decimal?  @db.Decimal(10, 2)
+  // Pricing - Hourly only
+  hourlyRate     Decimal       @db.Decimal(10, 2)
+  minHours       Int           @default(1)
+  maxHours       Int           @default(12)
+  includedGuests Int           @default(10)
+  extraGuestCharge Decimal?    @db.Decimal(10, 2)
   
-  // Constraints
-  minHours     Int       @default(2)
-  maxHours     Int       @default(12)
-  
-  // Operating hours
+  // Operating hours as JSON
   operatingHours Json?
   
-  // Amenities
-  amenities    String[]
-  capacity     Int?
+  // Amenities as JSON array
+  amenities      String[]
   
-  // Backward compatibility
-  price        Decimal   @default(0) @db.Decimal(10, 2)
+  // Listing details
+  capacity       Int
+  minCapacity    Int           @default(1)
+  size           String?       // e.g., "2000 sq ft"
+  rules          String[]      // House rules
   
-  status      ListingStatus @default(ACTIVE)
-  createdAt   DateTime?     @default(now())
-  updatedAt   DateTime?     @updatedAt
+  // Status and metadata
+  status         ListingStatus @default(ACTIVE)
+  featured       Boolean       @default(false)
+  views          Int           @default(0)
   
-  host         User      @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  images       Image[]   // ← Changed from ListingImage[]
-  bookings     Booking[]
+  // Timestamps
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   
+  // Relations
+  host           User          @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  images         Image[]       @relation("ListingImages")  // ADDED explicit relation name
+  bookings       Booking[]
+  reviews        Review[]
+  blockedDates   BlockedDate[]
+  savedBy        SavedListing[]
+  messages       Message[]
+  analytics      Analytics[]
+
   @@index([hostId])
   @@index([status])
+  @@index([featured])
+  @@index([slug])
 }
 
-// ✅ SIMPLE and REUSABLE
 model Image {
   id        Int      @id @default(autoincrement())
   url       String
-  s3Key     String   // ✅ Added for reliable S3 management
+  s3Key     String
   isCover   Boolean  @default(false)
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   
-  // Optional relations (at least one should be set)
+  // Optional relations
   listingId Int?
   userId    Int?
   
-  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // FIXED: Added explicit relation names
+  listing   Listing? @relation("ListingImages", fields: [listingId], references: [id], onDelete: Cascade)
+  user      User?    @relation("UserImages", fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([listingId])
   @@index([userId])
 }
 
 model Booking {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  listingId Int
+  id               Int           @id @default(autoincrement())
+  bookingNumber    String        @unique @default(uuid())
+  userId           Int
+  listingId        Int
   
-  bookingDate DateTime
-  startTime   String
-  endTime     String
-  duration    Int
-  guests      Int
+  // Booking details
+  bookingDate      DateTime
+  startTime        String        // Format: "14:30"
+  endTime          String        // Format: "18:30"
+  duration         Decimal       @db.Decimal(5, 2) // in hours, max 999.99 hours
+  guests           Int           @default(1)
   
-  pricingType PricingType
-  pricePerUnit Decimal     @db.Decimal(10, 2)
-  totalPrice  Decimal      @db.Decimal(10, 2)
+  // Pricing
+  basePrice        Decimal       @db.Decimal(10, 2)
+  extraGuestPrice  Decimal       @db.Decimal(10, 2) @default(0)
+  serviceFee       Decimal       @db.Decimal(10, 2) @default(0)
+  tax              Decimal       @db.Decimal(10, 2) @default(0)
+  totalPrice       Decimal       @db.Decimal(10, 2)
   
-  status      BookingStatus @default(PENDING)
+  // Status
+  status           BookingStatus @default(PENDING)
+  paymentStatus    String        @default("pending") // "pending", "paid", "refunded"
+  stripePaymentId  String?
   
-  specialRequests String?
+  // Additional info
+  specialRequests  String?
+  cancellationReason String?
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // Review tracking
+  canReview        Boolean       @default(false)
+  hasReviewed      Boolean       @default(false)
   
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  // Timestamps
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  cancelledAt      DateTime?
+  completedAt      DateTime?
+  
+  // Relations
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing          Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  review           Review?
   
   @@index([userId])
   @@index([listingId])
   @@index([bookingDate])
+  @@index([status])
+  @@index([bookingNumber])
+}
+
+model Review {
+  id          Int       @id @default(autoincrement())
+  bookingId   Int       @unique
+  listingId   Int
+  userId      Int
+  
+  // Ratings
+  rating      Int       // 1-5
+  title       String?
+  comment     String
+  
+  // Detailed ratings (optional)
+  cleanliness Decimal?  @db.Decimal(2,1)
+  accuracy    Decimal?  @db.Decimal(2,1)
+  communication Decimal? @db.Decimal(2,1)
+  location    Decimal?  @db.Decimal(2,1)
+  checkin     Decimal?  @db.Decimal(2,1)
+  value       Decimal?  @db.Decimal(2,1)
+  
+  // Status
+  status      ReviewStatus @default(APPROVED)
+  helpfulCount Int         @default(0)
+  reported     Boolean     @default(false)
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  listing     Listing     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  helpfulUsers User[]     @relation("HelpfulReviews")
+  
+  @@index([listingId])
+  @@index([userId])
+  @@index([rating])
   @@index([status])
 }
 
@@ -146,8 +249,68 @@ model BlockedDate {
   listingId Int
   date      DateTime
   reason    String?
-  
   createdAt DateTime @default(now())
   
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
   @@unique([listingId, date])
+}
+
+model SavedListing {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  listingId Int
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, listingId])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?           // Additional data as JSON
+  read      Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([read])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  senderId  Int
+  receiverId Int
+  listingId Int?
+  content   String
+  read      Boolean @default(false)
+  createdAt DateTime @default(now())
+  
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([listingId])
+}
+
+model Analytics {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @default(now())
+  metric    String
+  value     Json
+  listingId Int?
+  
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  @@index([date])
+  @@index([metric])
 }

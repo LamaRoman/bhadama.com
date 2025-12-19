@@ -4,6 +4,49 @@ import * as publicListingService from "../services/publicListingService.js";
  * Get all public listings with optional filters
  * GET /api/publicListings
  */
+
+import { prisma } from '../config/prisma.js';
+
+export const getAvailability = async (req, res) => {
+  try {
+    const listingId = parseInt(req.params.id);
+
+    if (isNaN(listingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid listing ID'
+      });
+    }
+
+    // Fetch unavailable dates for this listing
+    const bookings = await prisma.booking.findMany({
+      where: {
+        listingId: listingId,
+        status: 'COMPLETED', // or 'CONFIRMED' depending on your logic
+      },
+      select: {
+        bookingDate: true
+      }
+    });
+
+    // Convert to array of ISO strings for frontend
+    const unavailableDates = bookings.map(b => b.bookingDate.toISOString().split('T')[0]);
+
+    res.json({
+      success: true,
+      unavailableDates
+    });
+
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch availability',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export async function getListings(req, res) {
   try {
     const filters = {
