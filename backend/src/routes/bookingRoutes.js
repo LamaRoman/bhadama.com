@@ -7,10 +7,10 @@ const router = express.Router();
 // Create booking
 router.post("/", authenticate, controller.createBooking);
 
-// Get available time slots for a listing (public or auth - your choice)
+// Get available time slots for a listing
 router.get("/availability/:listingId", controller.getAvailability);
 
-// Get user's bookings
+// Get user's bookings - THIS IS THE CORRECT ENDPOINT
 router.get("/user", authenticate, controller.getUserBookings);
 
 // Get host's bookings

@@ -1,5 +1,5 @@
 import * as bookingService from "../services/bookingService.js";
-
+import { prisma } from "../config/prisma.js";
 /**
  * Create a new booking
  * POST /api/bookings
@@ -72,12 +72,44 @@ export async function getAvailability(req, res) {
 export async function getUserBookings(req, res) {
   try {
     const userId = req.user.userId;
-    const bookings = await bookingService.getUserBookings(userId);
+    console.log("Fetching bookings for user ID:", userId); // Debug log
 
-    res.json(bookings);
-  } catch (err) {
-    console.error("GET USER BOOKINGS ERROR:", err);
-    res.status(500).json({ error: "Failed to get bookings" });
+    const bookings = await prisma.booking.findMany({
+      where: { 
+        userId:userId // filter by the logged in user
+      },
+      include: {
+        listing: {
+          include: {
+            images: { where: { isCover: true }, take: 1 },
+            host: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profilePhoto: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bookingDate: "desc" },
+    });
+console.log("Found bookings:", bookings.length); // Debug log
+    const normalizedBookings = bookings.map(b => ({
+      ...b,
+      basePrice: Number(b.basePrice),
+      extraGuestPrice: Number(b.extraGuestPrice),
+      serviceFee: Number(b.serviceFee),
+      tax: Number(b.tax),
+      totalPrice: Number(b.totalPrice),
+      duration: Number(b.duration),
+    }));
+
+    res.json(normalizedBookings);
+  } catch (error) {
+    console.error("getUserBookings error:", error);
+    res.status(500).json({ error: "Failed to fetch bookings" });
   }
 }
 
@@ -124,16 +156,50 @@ export async function cancelBooking(req, res) {
  */
 export async function getBookingById(req, res) {
   try {
-    const bookingId = parseInt(req.params.id);
-    const booking = await bookingService.getBookingById(bookingId);
+    const bookingId = Number(req.params.id);
 
-    if (!booking) {
+    const b = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        listing: {
+          include: {
+            images: true,
+            host: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profilePhoto: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePhoto: true,
+          },
+        },
+      },
+    });
+
+    if (!b) {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    res.json(booking);
-  } catch (err) {
-    console.error("GET BOOKING ERROR:", err);
-    res.status(500).json({ error: "Failed to get booking" });
+    res.json({
+      ...b,
+      basePrice: Number(b.basePrice),
+      extraGuestPrice: Number(b.extraGuestPrice),
+      serviceFee: Number(b.serviceFee),
+      tax: Number(b.tax),
+      totalPrice: Number(b.totalPrice),
+      duration: Number(b.duration),
+    });
+  } catch (error) {
+    console.error("getBookingById error:", error);
+    res.status(500).json({ error: "Failed to fetch booking" });
   }
 }

@@ -1,4 +1,4 @@
-import express from 'express'
+import express from 'express';
 import {
   getAdminStats,
   getRecentBookings,
@@ -6,7 +6,9 @@ import {
   getAllListings,
   getPendingReviews,
   updateReviewStatus,
-  updateListingStatus
+  updateListingStatus,
+  getUserAnalytics,
+  getBookingAnalytics
 } from '../controllers/adminController.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
 
@@ -21,6 +23,10 @@ router.get('/stats', getAdminStats);
 router.get('/bookings/recent', getRecentBookings);
 router.get('/users/recent', getRecentUsers);
 router.get('/listings', getAllListings);
+
+// Analytics routes
+router.get('/analytics/users', getUserAnalytics);
+router.get('/analytics/bookings', getBookingAnalytics);
 
 // Moderation routes
 router.get('/reviews/pending', getPendingReviews);
