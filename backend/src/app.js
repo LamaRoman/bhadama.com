@@ -1,34 +1,42 @@
+// server.js or app.js
 import express from "express";
 import 'dotenv/config';
-import cors from "cors"
+import cors from "cors";
 
 import authRoutes from "./routes/auth.js";
-import userRoutes from "./routes/users.js"
+import hostListingRoutes from "./routes/hostListingRoutes.js";
+import publicListingRoutes from "./routes/publicListingRoutes.js";
+import availabilityRoutes from "./routes/availabilityRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
+import adminRoutes from './routes/adminRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 
 const app = express();
-app.use(express.json())
-app.use(cors());
 
+// Middleware
+app.use(express.json());
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+}));
 
-// Routes
-app.use("/api/auth",authRoutes);
-app.use("/api/users",userRoutes)
+// Routes - Register each only ONCE
+app.use("/api/auth", authRoutes);
+app.use("/api/host/listings", hostListingRoutes);
+app.use("/api/publicListings", publicListingRoutes);
+app.use("/api/availability", availabilityRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes); // ← ONLY ONCE!
 
 // Test route
 app.get("/", (req, res) => {
-  res.send("Hello! Server is working.");
+  res.send("Hello! myBigYard Server is working. 🏡");
 });
 
-//Testing
-/*
-app.post("/signup", async (req, res) => {
-  const { name, email, password, role } = req.body;
-  res.json({ success: true, received: { name, email, password, role } });
-});
-*/
-
-
-const PORT = process.env.PORT; 
+const PORT = process.env.PORT || 5000; 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

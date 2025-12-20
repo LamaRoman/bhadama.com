@@ -35,6 +35,7 @@ router.post("/login",async(req,res)=>{
     const {email,password} = req.body;
     try{
             const user = await prisma.user.findUnique({where:{email}});
+            console.log("User from database:", user); 
             if(!user) return res.status(400).json({error:"Invalid credentials"})
     
             const isMatch = await bcrypt.compare(password,user.password);
@@ -44,7 +45,7 @@ router.post("/login",async(req,res)=>{
             res.json({token,user});
 
         }catch(err){
-            console.error(err);
+            console.error(err.message);
             res.status(500).json({error:"Sercer error"})
         }
 })
