@@ -1,36 +1,37 @@
-import express from 'express';
-import {
-  getAdminStats,
-  getRecentBookings,
-  getRecentUsers,
-  getAllListings,
-  getPendingReviews,
-  updateReviewStatus,
-  updateListingStatus,
-  getUserAnalytics,
-  getBookingAnalytics
-} from '../controllers/adminController.js';
-import { authenticate, authorize } from '../middleware/authMiddleware.js';
+import express from "express";
+import { authenticate, authorize } from "../middleware/authMiddleware.js";
+import * as adminController from "../controllers/adminController.js";
 
 const router = express.Router();
 
-// Apply authentication and admin authorization to all routes
 router.use(authenticate);
-router.use(authorize('ADMIN'));
 
-// Dashboard routes
-router.get('/stats', getAdminStats);
-router.get('/bookings/recent', getRecentBookings);
-router.get('/users/recent', getRecentUsers);
-router.get('/listings', getAllListings);
+// Dashboard
+router.get(
+  "/dashboard",
+  authorize({ minRole: "ADMIN" }),
+  adminController.getDashboard
+);
 
-// Analytics routes
-router.get('/analytics/users', getUserAnalytics);
-router.get('/analytics/bookings', getBookingAnalytics);
+// Listing moderation
+router.post(
+  "/listings/:id/approve",
+  authorize({ minRole: "ADMIN", adminRoles: ["MODERATOR"] }),
+  adminController.moderateListing
+);
 
-// Moderation routes
-router.get('/reviews/pending', getPendingReviews);
-router.put('/reviews/:id/status', updateReviewStatus);
-router.put('/listings/:id/status', updateListingStatus);
+// Refunds
+router.post(
+  "/refunds/:bookingId",
+  authorize({ minRole: "ADMIN", adminRoles: ["FINANCE"] }),
+  adminController.issueRefund
+);
+
+// Reported reviews
+router.get(
+  "/reviews/reported",
+  authorize({ minRole: "ADMIN", adminRoles: ["MODERATOR"] }),
+  adminController.getReportedReviews
+);
 
 export default router;

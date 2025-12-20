@@ -31,7 +31,7 @@ export default function DashboardPage() {
 
         // Fetch user bookings
         const bookingsData = await api("/api/bookings/user");
-        
+        console.log("Bookings data:", bookingsData); //Debug log
         if (Array.isArray(bookingsData)) {
           setBookings(bookingsData);
         } else if (bookingsData.bookings) {

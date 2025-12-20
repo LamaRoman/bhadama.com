@@ -22,7 +22,7 @@ router.post("/register",async(req,res)=>{
         const user = await prisma.user.create({
             data:{name,email,password:hashedPassword,role}
         });
-        const token = jwt.sign({userId:user.id,email:user.email,role:user.role},process.env.JWT_SECRET,{expiresIn:"7d"});
+        const token = jwt.sign({userId:user.id,email:user.email,role:user.role,adminRole:user.adminRole},process.env.JWT_SECRET,{expiresIn:"7d"});
         res.json({token,user});
     }catch(err){
         console.error(err);

@@ -1,6 +1,6 @@
 // src/middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
-
+import { ROLE_HIERARCHY, ADMIN_HIERARCHY } from "../config/roles.js";
 // Export as "authenticate" to match your import
 export const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -20,16 +20,33 @@ export const authenticate = (req, res, next) => {
   }
 };
 
-// Also add the authorize function if needed
-export const authorize = (allowedRoles) =>{
-    return(req,res,next)=>{
-        if(!req.user) 
-            return res.status(401).json({message:"Not authenticated"});
-        
-        if(!allowedRoles.includes(req.user.role)){
-            return res.status(403).json({message:"Forbidden:insufficient permissions"})
-        }
-
-        next();
+export const authorize = ({ minRole = "USER", adminRoles = [] } = {}) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
     }
-}
+
+    const userRoleLevel = ROLE_HIERARCHY[req.user.role];
+    const requiredRoleLevel = ROLE_HIERARCHY[minRole];
+
+    if (userRoleLevel < requiredRoleLevel) {
+      return res.status(403).json({ message: "Insufficient role" });
+    }
+
+    // Admin-only checks
+    if (adminRoles.length > 0) {
+      if (req.user.role !== "ADMIN") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const adminLevel = ADMIN_HIERARCHY[req.user.adminRole];
+      const allowedLevels = adminRoles.map((r) => ADMIN_HIERARCHY[r]);
+
+      if (!allowedLevels.some((level) => adminLevel >= level)) {
+        return res.status(403).json({ message: "Admin permission denied" });
+      }
+    }
+
+    next();
+  };
+};
