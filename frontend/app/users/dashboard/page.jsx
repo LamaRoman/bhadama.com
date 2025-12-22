@@ -10,20 +10,30 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("all"); // "all", "upcoming", "completed", "cancelled"
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/auth/login");
-      return;
-    }
-
+    setMounted(true);
+    
+    // Only run the data fetching if we're on the client side and mounted
     const fetchData = async () => {
       try {
+        setLoading(true);
+        
+        // Check for token on client side
+        const token = localStorage.getItem("token");
+        if (!token) {
+          router.push("/auth/login");
+          return;
+        }
+
         // Fetch user profile
         const profileData = await api("/api/users/profile");
         if (profileData.error) {
+          console.error("Profile fetch error:", profileData.error);
+          localStorage.removeItem("token");
           router.push("/auth/login");
           return;
         }
@@ -31,16 +41,18 @@ export default function DashboardPage() {
 
         // Fetch user bookings
         const bookingsData = await api("/api/bookings/user");
-        console.log("Bookings data:", bookingsData); //Debug log
+        console.log("Bookings data:", bookingsData);
+        
         if (Array.isArray(bookingsData)) {
           setBookings(bookingsData);
-        } else if (bookingsData.bookings) {
+        } else if (bookingsData?.bookings) {
           setBookings(bookingsData.bookings);
         } else {
           setBookings([]);
         }
       } catch (err) {
         console.error("Dashboard error:", err);
+        localStorage.removeItem("token");
         router.push("/auth/login");
       } finally {
         setLoading(false);
@@ -50,19 +62,19 @@ export default function DashboardPage() {
     fetchData();
   }, [router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Calculate stats
+  // Filter bookings based on activeFilter
   const now = new Date();
   const upcomingBookings = bookings.filter(b => new Date(b.bookingDate) > now && b.status !== "CANCELLED");
   const completedBookings = bookings.filter(b => new Date(b.bookingDate) < now && b.status !== "CANCELLED");
   const cancelledBookings = bookings.filter(b => b.status === "CANCELLED");
+
+  // Filtered bookings to display
+  const filteredBookings = {
+    all: bookings,
+    upcoming: upcomingBookings,
+    completed: completedBookings,
+    cancelled: cancelledBookings
+  }[activeFilter];
 
   // Get next upcoming booking
   const nextBooking = upcomingBookings.length > 0 
@@ -70,6 +82,7 @@ export default function DashboardPage() {
     : null;
 
   const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -86,6 +99,47 @@ export default function DashboardPage() {
     return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
   };
 
+ // In your dashboard page, update the handleLeaveReview function:
+const handleLeaveReview = (bookingId, listingId) => {
+  if (!user) {
+    // Show a toast notification
+    alert("Please login to leave a review");
+    router.push(`/auth/login?redirect=/users/dashboard`);
+    return;
+  }
+
+  // Redirect to the new review page with bookingId
+  router.push(`/reviews/new/${listingId}?bookingId=${bookingId}`);
+};
+
+  // Show loading state
+  if (!mounted || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If no user data after loading, show error
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white">
+        <div className="text-center">
+          <div className="text-red-500 text-lg font-semibold mb-4">
+            Unable to load dashboard
+          </div>
+          <button
+            onClick={() => router.push("/auth/login")}
+            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-5 py-8">
@@ -99,56 +153,85 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Quick Stats */}
+        {/* Quick Stats - Now Clickable */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+          <button
+            onClick={() => setActiveFilter("all")}
+            className={`text-left bg-white border ${activeFilter === "all" ? "border-blue-300 shadow-lg" : "border-gray-200"} rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer`}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-600 text-sm font-medium">Total Bookings</p>
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className={`w-10 h-10 ${activeFilter === "all" ? "bg-blue-100" : "bg-gray-100"} rounded-lg flex items-center justify-center`}>
+                <svg className={`w-5 h-5 ${activeFilter === "all" ? "text-blue-600" : "text-gray-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
             </div>
-            <p className="text-4xl font-bold text-gray-900">{bookings.length}</p>
+            <p className={`text-4xl font-bold ${activeFilter === "all" ? "text-blue-600" : "text-gray-900"}`}>{bookings.length}</p>
             <p className="text-sm text-gray-500 mt-2">
               All-time bookings made
             </p>
-          </div>
+          </button>
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+          <button
+            onClick={() => setActiveFilter("upcoming")}
+            className={`text-left bg-white border ${activeFilter === "upcoming" ? "border-blue-300 shadow-lg" : "border-gray-200"} rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer`}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-600 text-sm font-medium">Upcoming</p>
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className={`w-10 h-10 ${activeFilter === "upcoming" ? "bg-blue-100" : "bg-blue-50"} rounded-lg flex items-center justify-center`}>
+                <svg className={`w-5 h-5 ${activeFilter === "upcoming" ? "text-blue-600" : "text-blue-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <p className="text-4xl font-bold text-blue-600">{upcomingBookings.length}</p>
+            <p className={`text-4xl font-bold ${activeFilter === "upcoming" ? "text-blue-600" : "text-blue-600"}`}>{upcomingBookings.length}</p>
             <p className="text-sm text-gray-500 mt-2">
               Future bookings scheduled
             </p>
-          </div>
+          </button>
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+          <button
+            onClick={() => setActiveFilter("completed")}
+            className={`text-left bg-white border ${activeFilter === "completed" ? "border-green-300 shadow-lg" : "border-gray-200"} rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer`}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-600 text-sm font-medium">Completed</p>
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className={`w-10 h-10 ${activeFilter === "completed" ? "bg-green-100" : "bg-green-50"} rounded-lg flex items-center justify-center`}>
+                <svg className={`w-5 h-5 ${activeFilter === "completed" ? "text-green-600" : "text-green-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <p className="text-4xl font-bold text-green-600">{completedBookings.length}</p>
+            <p className={`text-4xl font-bold ${activeFilter === "completed" ? "text-green-600" : "text-green-600"}`}>{completedBookings.length}</p>
             <p className="text-sm text-gray-500 mt-2">
-              Past successful bookings
+              Click to view and leave reviews
             </p>
-          </div>
+          </button>
         </div>
 
+        {/* Active Filter Badge */}
+        {activeFilter !== "all" && (
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl">
+              <span className="text-sm text-gray-600">Showing:</span>
+              <span className="text-sm font-medium capitalize">
+                {activeFilter} bookings ({filteredBookings.length})
+              </span>
+              <button
+                onClick={() => setActiveFilter("all")}
+                className="ml-2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Next Booking Highlight */}
-        {nextBooking && (
+        {nextBooking && activeFilter === "all" && (
           <div className="mb-8">
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-8 text-white">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -185,10 +268,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
-                    onClick={() => {
-                      // View booking details
-                      router.push(`/bookings/${nextBooking.id}`);
-                    }}
+                    onClick={() => router.push(`/bookings/${nextBooking.id}`)}
                     className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-colors"
                   >
                     View Details
@@ -206,7 +286,7 @@ export default function DashboardPage() {
         )}
 
         {/* Upcoming Bookings (if any) */}
-        {upcomingBookings.length > 0 && (
+        {upcomingBookings.length > 0 && activeFilter === "all" && (
           <div className="mb-8">
             <div className="bg-white border border-gray-200 rounded-2xl p-6">
               <div className="flex justify-between items-center mb-6">
@@ -217,10 +297,10 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => router.push("/public/listings")}
+                  onClick={() => setActiveFilter("upcoming")}
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-colors group"
                 >
-                  Book Another
+                  View All Upcoming
                   <svg 
                     className="w-4 h-4 group-hover:translate-x-1 transition-transform" 
                     fill="none" 
@@ -288,10 +368,7 @@ export default function DashboardPage() {
               {upcomingBookings.length > 3 && (
                 <div className="mt-6 text-center">
                   <button
-                    onClick={() => {
-                      // Scroll to all bookings section
-                      document.getElementById('all-bookings')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
+                    onClick={() => setActiveFilter("upcoming")}
                     className="text-blue-600 hover:text-blue-700 font-medium text-sm"
                   >
                     View all {upcomingBookings.length} upcoming bookings ↓
@@ -306,29 +383,48 @@ export default function DashboardPage() {
         <div id="all-bookings" className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">All Bookings</h2>
+              <h2 className="text-2xl font-bold text-gray-900 capitalize">
+                {activeFilter === "all" ? "All Bookings" : `${activeFilter} Bookings`}
+              </h2>
               <p className="text-gray-600 mt-1">
-                View and manage all your bookings
+                {activeFilter === "completed" 
+                  ? "View completed bookings and leave reviews" 
+                  : "View and manage all your bookings"}
               </p>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex gap-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                <button
+                  onClick={() => setActiveFilter("all")}
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeFilter === "all" ? "bg-blue-100 text-blue-800 border border-blue-200" : "bg-gray-50 text-gray-800 hover:bg-gray-100"}`}
+                >
+                  {bookings.length} All
+                </button>
+                <button
+                  onClick={() => setActiveFilter("upcoming")}
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeFilter === "upcoming" ? "bg-blue-100 text-blue-800 border border-blue-200" : "bg-blue-50 text-blue-800 hover:bg-blue-100"}`}
+                >
                   {upcomingBookings.length} Upcoming
-                </span>
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                </button>
+                <button
+                  onClick={() => setActiveFilter("completed")}
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeFilter === "completed" ? "bg-green-100 text-green-800 border border-green-200" : "bg-green-50 text-green-800 hover:bg-green-100"}`}
+                >
                   {completedBookings.length} Completed
-                </span>
+                </button>
                 {cancelledBookings.length > 0 && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  <button
+                    onClick={() => setActiveFilter("cancelled")}
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeFilter === "cancelled" ? "bg-gray-100 text-gray-800 border border-gray-200" : "bg-gray-50 text-gray-800 hover:bg-gray-100"}`}
+                  >
                     {cancelledBookings.length} Cancelled
-                  </span>
+                  </button>
                 )}
               </div>
             </div>
           </div>
 
-          {bookings.length === 0 ? (
+          {filteredBookings.length === 0 ? (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                 <svg
@@ -344,9 +440,13 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings yet</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {activeFilter === "completed" ? "No completed bookings" : "No bookings yet"}
+              </h3>
               <p className="text-gray-600 mb-6">
-                Start exploring amazing yards and make your first booking.
+                {activeFilter === "completed" 
+                  ? "You don't have any completed bookings yet."
+                  : "Start exploring amazing yards and make your first booking."}
               </p>
               <button
                 onClick={() => router.push("/public/listings")}
@@ -359,7 +459,96 @@ export default function DashboardPage() {
               </button>
             </div>
           ) : (
-            <UserBookings bookings={bookings} setBookings={setBookings} />
+            <div className="space-y-4">
+              {activeFilter === "completed" ? (
+                // Special view for completed bookings with review buttons
+                filteredBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-3">
+                          <h3 className="text-xl font-semibold text-gray-900">
+                            {booking.listing?.title || "Booking"}
+                          </h3>
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            {booking.status}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm text-gray-500">Date</p>
+                              <p className="font-medium">{formatDate(booking.bookingDate)}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm text-gray-500">Time</p>
+                              <p className="font-medium">{formatTime(booking.startTime)} - {formatTime(booking.endTime)}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm text-gray-500">Guests</p>
+                              <p className="font-medium">{booking.guests} guest{booking.guests !== 1 ? "s" : ""}</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600 mb-4">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-sm text-gray-500">Total</p>
+                            <p className="text-xl font-bold text-gray-900">
+                              ${Number(booking.totalPrice).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-3">
+                        <button
+                          onClick={() => router.push(`/bookings/${booking.id}`)}
+                          className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          View Details
+                        </button>
+                        
+                       {/* In the completed bookings section */}
+{booking.listing?.id && (
+  <button
+    onClick={() => handleLeaveReview(booking.id, booking.listing.id)}
+    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl"
+  >
+    Leave a Review
+  </button>
+)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                // Regular UserBookings component for other filters
+                <UserBookings bookings={filteredBookings} setBookings={setBookings} />
+              )}
+            </div>
           )}
         </div>
       </div>

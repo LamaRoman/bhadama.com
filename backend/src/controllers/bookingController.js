@@ -5,6 +5,31 @@ import { prisma } from "../config/prisma.js";
  * POST /api/bookings
  */
 
+export const completeExpiredBookings = async () => {
+  const now = new Date();
+
+  const bookings = await prisma.booking.findMany({
+    where: { status: "CONFIRMED" }
+  });
+
+  for (const booking of bookings) {
+    const endDateTime = new Date(booking.bookingDate);
+    const [h, m] = booking.endTime.split(":");
+    endDateTime.setHours(h, m, 0, 0);
+
+    if (endDateTime <= now) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "COMPLETED",
+          completedAt: now
+        }
+      });
+    }
+  }
+};
+
+
 export async function createBooking(req, res) {
   try {
     const userId = req.user.userId;

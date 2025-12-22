@@ -35,6 +35,8 @@ export default function PublicListingDetail() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const [eligibleBookingId, setEligibleBookingId] = useState(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [listing, setListing] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -233,6 +235,7 @@ export default function PublicListingDetail() {
 
         if (response.canReview) {
           setCanUserReview(true);
+          setEligibleBookingId(response.bookingId); // 🔥 REQUIRED
           setReviewEligibilityReason("You can review this listing");
         } else {
           setCanUserReview(false);
@@ -295,91 +298,14 @@ export default function PublicListingDetail() {
     }
   };
 
-  const handleSubmitReview = async () => {
+  const handleLeaveReview = (bookingId) => {
     if (!user) {
-      toast.error("Please login to submit a review");
+      toast.error("Please login to leave a review");
       router.push(`/login?redirect=/listings/${id}`);
       return;
     }
 
-    if (reviewForm.rating === 0) {
-      toast.error("Please select a rating");
-      return;
-    }
-
-    if (!reviewForm.comment.trim()) {
-      toast.error("Please write a comment");
-      return;
-    }
-
-    setSubmittingReview(true);
-
-    try {
-      const response = await api(`/api/reviews/listings/${id}/reviews`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: {
-          rating: reviewForm.rating,
-          title: reviewForm.title,
-          comment: reviewForm.comment,
-          cleanliness: reviewForm.cleanliness,
-          accuracy: reviewForm.accuracy,
-          communication: reviewForm.communication,
-          location: reviewForm.location,
-          checkin: reviewForm.checkin,
-          value: reviewForm.value,
-        },
-      });
-
-      if (response.success === false) {
-        throw new Error(response.message || "Failed to submit review");
-      }
-
-      toast.success("🎉 Review submitted successfully!");
-
-      // Refresh reviews
-      const reviewsData = await api(`/api/listings/${id}/reviews`);
-      setReviews(reviewsData.reviews || []);
-      setReviewStats({
-        average: reviewsData.averageRating || 0,
-        total: reviewsData.totalReviews || 0,
-        distribution: reviewsData.ratingDistribution || {},
-      });
-
-      setUserReview(response.review);
-      setShowReviewForm(false);
-      setCanUserReview(false); // User can't review again
-      setReviewEligibilityReason("You've already reviewed this listing");
-
-      // Reset form
-      setReviewForm({
-        rating: 0,
-        title: "",
-        comment: "",
-        cleanliness: 5,
-        accuracy: 5,
-        communication: 5,
-        location: 5,
-        checkin: 5,
-        value: 5,
-      });
-    } catch (error) {
-      console.error("Review submission error:", error);
-
-      // Handle specific error cases
-      if (error.message.includes("already reviewed")) {
-        toast.error("You have already reviewed this listing");
-        setCanUserReview(false);
-      } else if (error.message.includes("Rating and comment")) {
-        toast.error("Rating and comment are required");
-      } else {
-        toast.error(error.message || "Failed to submit review");
-      }
-    } finally {
-      setSubmittingReview(false);
-    }
+    router.push(`/reviews/new/${id}?bookingId=${bookingId}`);
   };
 
   const daysInMonth = () => {
@@ -564,7 +490,7 @@ export default function PublicListingDetail() {
     return true;
   };
 
-   const handleBooking = async () => {
+  const handleBooking = async () => {
     if (!validateBooking()) return;
 
     setIsBooking(true);
@@ -572,7 +498,7 @@ export default function PublicListingDetail() {
     try {
       // Calculate duration here to show in the request
       const duration = calculateDuration();
-      
+
       const data = await api("/api/bookings", {
         method: "POST",
         body: {
@@ -586,7 +512,7 @@ export default function PublicListingDetail() {
           // Don't send totalPrice - backend will calculate it
         },
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
@@ -1163,6 +1089,7 @@ export default function PublicListingDetail() {
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
+                        {/* In the Reviews Header with Stats section */}
                         {checkingReviewEligibility ? (
                           <div className="px-6 py-3 bg-stone-100 text-stone-600 font-bold rounded-lg border border-stone-200 flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
@@ -1170,35 +1097,25 @@ export default function PublicListingDetail() {
                           </div>
                         ) : canUserReview && !userReview ? (
                           <button
-                            onClick={() => setShowReviewForm(true)}
+                            onClick={() => {
+                              // Redirect to the new review page
+                              router.push(
+                                `/reviews/new/${id}${
+                                  eligibleBookingId
+                                    ? `?bookingId=${eligibleBookingId}`
+                                    : ""
+                                }`
+                              );
+                            }}
                             className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-lg hover:shadow-lg transition-all hover:scale-105 active:scale-95"
                           >
-                            ✍️ Write a Review
+                            ✍️ Leave a Review
                           </button>
                         ) : userReview ? (
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-2 items-end">
                             <div className="px-6 py-3 bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-200">
                               ✅ You've reviewed this space
                             </div>
-                            <button
-                              onClick={() => {
-                                setReviewForm({
-                                  rating: userReview.rating,
-                                  title: userReview.title || "",
-                                  comment: userReview.comment,
-                                  cleanliness: userReview.cleanliness || 5,
-                                  accuracy: userReview.accuracy || 5,
-                                  communication: userReview.communication || 5,
-                                  location: userReview.location || 5,
-                                  checkin: userReview.checkin || 5,
-                                  value: userReview.value || 5,
-                                });
-                                setShowReviewForm(true);
-                              }}
-                              className="px-4 py-2 text-sm border border-emerald-300 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors"
-                            >
-                              ✏️ Edit Review
-                            </button>
                           </div>
                         ) : user ? (
                           <div className="flex flex-col gap-2 items-end">
@@ -1400,244 +1317,332 @@ export default function PublicListingDetail() {
 
                   {/* Review Form Modal - keep existing code */}
                   {/* Review Form Modal */}
-{showReviewForm && (
-  <div className="fixed inset-0 z-[100]">
-    {/* Backdrop with blur */}
-    <div 
-      className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-      onClick={() => {
-        setShowReviewForm(false);
-        if (!userReview) {
-          setReviewForm({
-            rating: 0,
-            title: "",
-            comment: "",
-            cleanliness: 5,
-            accuracy: 5,
-            communication: 5,
-            location: 5,
-            checkin: 5,
-            value: 5
-          });
-        }
-      }}
-    />
-    
-    {/* Modal Content */}
-  <div className="absolute inset-0 flex items-center justify-center p-4 md:p-6">
-  <div 
-    ref={reviewFormRef}
-    className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200 flex flex-col"
-  >
-    {/* Header */}
-    <div className="p-6 border-b border-stone-200 bg-gradient-to-r from-emerald-50 to-teal-50">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-2xl font-bold text-stone-900">
-            {userReview ? 'Edit Your Review' : 'Write a Review'}
-          </h3>
-          <p className="text-stone-600 mt-1">
-            Share your experience to help others decide
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setShowReviewForm(false);
-            if (!userReview) {
-              setReviewForm({
-                rating: 0,
-                title: "",
-                comment: "",
-                cleanliness: 5,
-                accuracy: 5,
-                communication: 5,
-                location: 5,
-                checkin: 5,
-                value: 5
-              });
-            }
-          }}
-          className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
-          aria-label="Close"
-        >
-          <svg className="w-6 h-6 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-    
-    {/* Form Content - Scrollable area */}
-    <div className="flex-1 overflow-y-auto">
-      <div className="p-6 space-y-6">
-        {/* Overall Rating */}
-        <div>
-          <label className="block text-lg font-bold text-stone-900 mb-3">
-            Overall Rating *
-          </label>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
-                className="text-5xl focus:outline-none hover:scale-110 transition-transform duration-150"
-              >
-                <span className={star <= reviewForm.rating ? 'text-yellow-400' : 'text-stone-300'}>
-                  ★
-                </span>
-              </button>
-            ))}
-            <span className="text-2xl font-bold text-stone-700 ml-4">
-              {reviewForm.rating}.0
-            </span>
-          </div>
-          <p className="text-sm text-stone-500 mt-2">
-            How would you rate your overall experience?
-          </p>
-        </div>
+                  {showReviewForm && (
+                    <div className="fixed inset-0 z-[100]">
+                      {/* Backdrop with blur */}
+                      <div
+                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        onClick={() => {
+                          setShowReviewForm(false);
+                          if (!userReview) {
+                            setReviewForm({
+                              rating: 0,
+                              title: "",
+                              comment: "",
+                              cleanliness: 5,
+                              accuracy: 5,
+                              communication: 5,
+                              location: 5,
+                              checkin: 5,
+                              value: 5,
+                            });
+                          }
+                        }}
+                      />
 
-        {/* Review Title */}
-        <div>
-          <label className="block text-sm font-bold text-stone-900 mb-2">
-            Review Title (Optional)
-          </label>
-          <input
-            type="text"
-            value={reviewForm.title}
-            onChange={(e) => setReviewForm(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Summarize your experience in a few words"
-            className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-            maxLength={100}
-          />
-          <div className="text-right text-sm text-stone-500 mt-1">
-            {reviewForm.title.length}/100 characters
-          </div>
-        </div>
+                      {/* Modal Content */}
+                      <div className="absolute inset-0 flex items-center justify-center p-4 md:p-6">
+                        <div
+                          ref={reviewFormRef}
+                          className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200 flex flex-col"
+                        >
+                          {/* Header */}
+                          <div className="p-6 border-b border-stone-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-2xl font-bold text-stone-900">
+                                  {userReview
+                                    ? "Edit Your Review"
+                                    : "listingpage"}
+                                </h3>
+                                <p className="text-stone-600 mt-1">
+                                  Share your experience to help others decide
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setShowReviewForm(false);
+                                  if (!userReview) {
+                                    setReviewForm({
+                                      rating: 0,
+                                      title: "",
+                                      comment: "",
+                                      cleanliness: 5,
+                                      accuracy: 5,
+                                      communication: 5,
+                                      location: 5,
+                                      checkin: 5,
+                                      value: 5,
+                                    });
+                                  }
+                                }}
+                                className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+                                aria-label="Close"
+                              >
+                                <svg
+                                  className="w-6 h-6 text-stone-500"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
 
-        {/* Review Comment */}
-        <div>
-          <label className="block text-sm font-bold text-stone-900 mb-2">
-            Your Review *
-          </label>
-          <textarea
-            value={reviewForm.comment}
-            onChange={(e) => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
-            placeholder="Share details about your experience, what you liked, and what could be improved..."
-            className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all resize-none h-40"
-            maxLength={2000}
-            required
-          />
-          <div className="flex justify-between items-center mt-1">
-            <p className="text-sm text-stone-500">
-              Be specific and helpful for other guests
-            </p>
-            <div className="text-sm text-stone-500">
-              {reviewForm.comment.length}/2000 characters
-            </div>
-          </div>
-        </div>
+                          {/* Form Content - Scrollable area */}
+                          <div className="flex-1 overflow-y-auto">
+                            <div className="p-6 space-y-6">
+                              {/* Overall Rating */}
+                              <div>
+                                <label className="block text-lg font-bold text-stone-900 mb-3">
+                                  Overall Rating *
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                      key={star}
+                                      type="button"
+                                      onClick={() =>
+                                        setReviewForm((prev) => ({
+                                          ...prev,
+                                          rating: star,
+                                        }))
+                                      }
+                                      className="text-5xl focus:outline-none hover:scale-110 transition-transform duration-150"
+                                    >
+                                      <span
+                                        className={
+                                          star <= reviewForm.rating
+                                            ? "text-yellow-400"
+                                            : "text-stone-300"
+                                        }
+                                      >
+                                        ★
+                                      </span>
+                                    </button>
+                                  ))}
+                                  <span className="text-2xl font-bold text-stone-700 ml-4">
+                                    {reviewForm.rating}.0
+                                  </span>
+                                </div>
+                                <p className="text-sm text-stone-500 mt-2">
+                                  How would you rate your overall experience?
+                                </p>
+                              </div>
 
-        {/* Category Ratings (Optional - can be collapsed) */}
-        <div className="border-t border-stone-200 pt-6">
-          <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer list-none">
-              <span className="text-lg font-bold text-stone-900">
-                Category Ratings (Optional)
-              </span>
-              <svg className="w-5 h-5 text-stone-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-            <div className="mt-4 space-y-4">
-              {[
-                { key: 'cleanliness', label: 'Cleanliness', value: reviewForm.cleanliness },
-                { key: 'accuracy', label: 'Accuracy', value: reviewForm.accuracy },
-                { key: 'communication', label: 'Communication', value: reviewForm.communication },
-                { key: 'location', label: 'Location', value: reviewForm.location },
-                { key: 'checkin', label: 'Check-in', value: reviewForm.checkin },
-                { key: 'value', label: 'Value', value: reviewForm.value }
-              ].map(({ key, label, value }) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium text-stone-700">{label}</label>
-                    <span className="text-sm font-bold text-stone-900">{value}/5</span>
-                  </div>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setReviewForm(prev => ({ ...prev, [key]: star }))}
-                        className="text-2xl focus:outline-none hover:scale-110 transition-transform"
-                      >
-                        <span className={star <= value ? 'text-yellow-400' : 'text-stone-300'}>
-                          ★
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </details>
-        </div>
-        
-        {/* Bottom spacing for better scroll feel */}
-        <div className="h-6"></div>
-      </div>
-    </div>
+                              {/* Review Title */}
+                              <div>
+                                <label className="block text-sm font-bold text-stone-900 mb-2">
+                                  Review Title (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={reviewForm.title}
+                                  onChange={(e) =>
+                                    setReviewForm((prev) => ({
+                                      ...prev,
+                                      title: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Summarize your experience in a few words"
+                                  className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                                  maxLength={100}
+                                />
+                                <div className="text-right text-sm text-stone-500 mt-1">
+                                  {reviewForm.title.length}/100 characters
+                                </div>
+                              </div>
 
-    {/* Footer with Actions - Fixed at bottom */}
-    <div className="p-6 border-t border-stone-200 bg-stone-50">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button
-          onClick={() => {
-            setShowReviewForm(false);
-            if (!userReview) {
-              setReviewForm({
-                rating: 0,
-                title: "",
-                comment: "",
-                cleanliness: 5,
-                accuracy: 5,
-                communication: 5,
-                location: 5,
-                checkin: 5,
-                value: 5
-              });
-            }
-          }}
-          className="px-6 py-3 border border-stone-300 text-stone-700 font-bold rounded-lg hover:bg-stone-100 transition-colors flex-1"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmitReview}
-          disabled={submittingReview || reviewForm.rating === 0 || !reviewForm.comment.trim()}
-          className={`px-6 py-3 font-bold rounded-lg transition-all flex-1 ${
-            submittingReview || reviewForm.rating === 0 || !reviewForm.comment.trim()
-              ? "bg-stone-200 text-stone-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:shadow-lg"
-          }`}
-        >
-          {submittingReview ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Submitting...
-            </span>
-          ) : userReview ? (
-            "Update Review"
-          ) : (
-            "Submit Review"
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-  </div>
-)}
+                              {/* Review Comment */}
+                              <div>
+                                <label className="block text-sm font-bold text-stone-900 mb-2">
+                                  Your Review *
+                                </label>
+                                <textarea
+                                  value={reviewForm.comment}
+                                  onChange={(e) =>
+                                    setReviewForm((prev) => ({
+                                      ...prev,
+                                      comment: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Share details about your experience, what you liked, and what could be improved..."
+                                  className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all resize-none h-40"
+                                  maxLength={2000}
+                                  required
+                                />
+                                <div className="flex justify-between items-center mt-1">
+                                  <p className="text-sm text-stone-500">
+                                    Be specific and helpful for other guests
+                                  </p>
+                                  <div className="text-sm text-stone-500">
+                                    {reviewForm.comment.length}/2000 characters
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Category Ratings (Optional - can be collapsed) */}
+                              <div className="border-t border-stone-200 pt-6">
+                                <details className="group">
+                                  <summary className="flex items-center justify-between cursor-pointer list-none">
+                                    <span className="text-lg font-bold text-stone-900">
+                                      Category Ratings (Optional)
+                                    </span>
+                                    <svg
+                                      className="w-5 h-5 text-stone-500 group-open:rotate-180 transition-transform"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M19 9l-7 7-7-7"
+                                      />
+                                    </svg>
+                                  </summary>
+                                  <div className="mt-4 space-y-4">
+                                    {[
+                                      {
+                                        key: "cleanliness",
+                                        label: "Cleanliness",
+                                        value: reviewForm.cleanliness,
+                                      },
+                                      {
+                                        key: "accuracy",
+                                        label: "Accuracy",
+                                        value: reviewForm.accuracy,
+                                      },
+                                      {
+                                        key: "communication",
+                                        label: "Communication",
+                                        value: reviewForm.communication,
+                                      },
+                                      {
+                                        key: "location",
+                                        label: "Location",
+                                        value: reviewForm.location,
+                                      },
+                                      {
+                                        key: "checkin",
+                                        label: "Check-in",
+                                        value: reviewForm.checkin,
+                                      },
+                                      {
+                                        key: "value",
+                                        label: "Value",
+                                        value: reviewForm.value,
+                                      },
+                                    ].map(({ key, label, value }) => (
+                                      <div key={key} className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                          <label className="text-sm font-medium text-stone-700">
+                                            {label}
+                                          </label>
+                                          <span className="text-sm font-bold text-stone-900">
+                                            {value}/5
+                                          </span>
+                                        </div>
+                                        <div className="flex gap-1">
+                                          {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                              key={star}
+                                              type="button"
+                                              onClick={() =>
+                                                setReviewForm((prev) => ({
+                                                  ...prev,
+                                                  [key]: star,
+                                                }))
+                                              }
+                                              className="text-2xl focus:outline-none hover:scale-110 transition-transform"
+                                            >
+                                              <span
+                                                className={
+                                                  star <= value
+                                                    ? "text-yellow-400"
+                                                    : "text-stone-300"
+                                                }
+                                              >
+                                                ★
+                                              </span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </details>
+                              </div>
+
+                              {/* Bottom spacing for better scroll feel */}
+                              <div className="h-6"></div>
+                            </div>
+                          </div>
+
+                          {/* Footer with Actions - Fixed at bottom */}
+                          <div className="p-6 border-t border-stone-200 bg-stone-50">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                onClick={() => {
+                                  setShowReviewForm(false);
+                                  if (!userReview) {
+                                    setReviewForm({
+                                      rating: 0,
+                                      title: "",
+                                      comment: "",
+                                      cleanliness: 5,
+                                      accuracy: 5,
+                                      communication: 5,
+                                      location: 5,
+                                      checkin: 5,
+                                      value: 5,
+                                    });
+                                  }
+                                }}
+                                className="px-6 py-3 border border-stone-300 text-stone-700 font-bold rounded-lg hover:bg-stone-100 transition-colors flex-1"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleSubmitReview}
+                                disabled={
+                                  submittingReview ||
+                                  reviewForm.rating === 0 ||
+                                  !reviewForm.comment.trim()
+                                }
+                                className={`px-6 py-3 font-bold rounded-lg transition-all flex-1 ${
+                                  submittingReview ||
+                                  reviewForm.rating === 0 ||
+                                  !reviewForm.comment.trim()
+                                    ? "bg-stone-200 text-stone-400 cursor-not-allowed"
+                                    : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:shadow-lg"
+                                }`}
+                              >
+                                {submittingReview ? (
+                                  <span className="flex items-center justify-center gap-2">
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Submitting...
+                                  </span>
+                                ) : userReview ? (
+                                  "Update Review"
+                                ) : (
+                                  "Submit Review"
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Reviews List */}
                   {reviews.length > 0 ? (

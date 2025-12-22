@@ -1,7 +1,7 @@
 // src/middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
 import { ROLE_HIERARCHY, ADMIN_HIERARCHY } from "../config/roles.js";
-// Export as "authenticate" to match your import
+
 export const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -13,7 +13,14 @@ export const authenticate = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // 🔥 THIS LINE IS REQUIRED
+
+    req.user = {
+      userId: decoded.userId,  // consistent with getProfile
+      email: decoded.email,
+      role: decoded.role,
+      adminRole: decoded.adminRole || null,
+    };
+
     next();
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });
@@ -33,7 +40,6 @@ export const authorize = ({ minRole = "USER", adminRoles = [] } = {}) => {
       return res.status(403).json({ message: "Insufficient role" });
     }
 
-    // Admin-only checks
     if (adminRoles.length > 0) {
       if (req.user.role !== "ADMIN") {
         return res.status(403).json({ message: "Admin access required" });

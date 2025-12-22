@@ -11,7 +11,9 @@ import userRoutes from "./routes/userRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import { completeExpiredBookings } from "./controllers/bookingController.js";
 const app = express();
+
 
 // Middleware
 app.use(express.json());
@@ -19,6 +21,16 @@ app.use(cors({
   origin: "http://localhost:3000",
   credentials: true,
 }));
+completeExpiredBookings(); // run once at startup
+
+setInterval(async () => {
+  try {
+    await completeExpiredBookings();
+  } catch (err) {
+    console.error("❌ Booking completion job failed:", err);
+  }
+}, 5 * 60 * 1000);
+
 
 // Routes - Register each only ONCE
 app.use("/api/auth", authRoutes);
