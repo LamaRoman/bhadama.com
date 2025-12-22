@@ -2,12 +2,13 @@
 import { api } from "../../utils/api.js";
 import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext.js";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,33 +29,35 @@ export default function LoginPage() {
     }
 
     try {
-  const data = await api("/api/auth/login", {
-    method: "POST",
-    body: { email, password }
-  });
+      const data = await api("/api/auth/login", {
+        method: "POST",
+        body: { email, password }
+      });
 
-  if (data.error) {
-    setError(data.error);
-    return;
-  }
+      if (data.error) {
+        setError(data.error);
+        setIsLoading(false);
+        return;
+      }
 
-  login(data.user, data.token);
+      login(data.user, data.token);
 
-  // ✅ Role-based redirect
-  switch (data.user.role) {
-    case "SUPER_ADMIN":
-    case "ADMIN":
-      router.push("/admin/dashboard");
-      break;
-    default:
-      router.push("/users/dashboard");
-  }
+      // Get redirect URL from query params
+      const redirect = searchParams.get('redirect');
+      
+      // If there's a redirect URL, go there
+      if (redirect) {
+        router.push(redirect);
+      } else {
+        // Otherwise, go to homepage
+        router.push("/");
+      }
 
-} catch (error) {
-  console.error("Login error:", error);
-  setError("Invalid email or password. Please try again.");
-}
-
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Invalid email or password. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -220,8 +223,6 @@ export default function LoginPage() {
             <Link href="/privacy" className="underline hover:text-gray-700">Privacy Policy</Link>
           </div>
         </div>
-
-       
       </div>
     </div>
   );

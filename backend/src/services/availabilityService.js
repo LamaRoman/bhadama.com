@@ -207,6 +207,47 @@ function timesOverlap(start1, end1, start2, end2) {
   return s1 < e2 && s2 < e1;
 }
 
+// In availabilityService.js - modify getBookedDates or create a new function
+export async function getCalendarAvailability(listingId, startDate, endDate) {
+  const [bookings, blockedDates] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        listingId,
+        bookingDate: { gte: startDate, lte: endDate },
+        status: { in: ["CONFIRMED", "PENDING"] }
+      },
+      select: { bookingDate: true }
+    }),
+    prisma.blockedDate.findMany({
+      where: {
+        listingId,
+        date: { gte: startDate, lte: endDate }
+      }
+    })
+  ]);
+  
+  // Convert to date strings for easy comparison
+  const bookedDateStrs = bookings.map(b => b.bookingDate.toISOString().split('T')[0]);
+  const blockedDateStrs = blockedDates.map(b => b.date.toISOString().split('T')[0]);
+  
+  // Generate response
+  const availability = {};
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    availability[dateStr] = {
+      available: !bookedDateStrs.includes(dateStr) && !blockedDateStrs.includes(dateStr),
+      status: bookedDateStrs.includes(dateStr) ? "booked" : 
+              blockedDateStrs.includes(dateStr) ? "blocked" : "available"
+    };
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return availability;
+}
 // Convert HH:MM to minutes since midnight
 function timeToMinutes(time) {
   const [hours, minutes] = time.split(":").map(Number);

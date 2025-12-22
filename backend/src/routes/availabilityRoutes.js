@@ -31,5 +31,5 @@ router.delete(
 
 // General availability (should be last as it's most generic)
 router.get("/:listingId", controller.getAvailability);
-
+router.get("/:listingId/calendar", controller.getCalendarAvailability);
 export default router;

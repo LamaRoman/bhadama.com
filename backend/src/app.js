@@ -30,7 +30,10 @@ setInterval(async () => {
     console.error("❌ Booking completion job failed:", err);
   }
 }, 5 * 60 * 1000);
-
+app.use((req, res, next) => {
+  console.log("Incoming body:", req.body);
+  next();
+});
 
 // Routes - Register each only ONCE
 app.use("/api/auth", authRoutes);

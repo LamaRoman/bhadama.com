@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback,useMemo} from "react";
 import { api } from "../../../utils/api.js";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext.js";
@@ -60,6 +60,7 @@ export default function PublicListingDetail() {
   const [isBooking, setIsBooking] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [unavailableDates, setUnavailableDates] = useState(new Set());
+  const [availabilityData, setAvailabilityData] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -94,6 +95,35 @@ export default function PublicListingDetail() {
   // Add floating booking bar state
   const [showFloatingBar, setShowFloatingBar] = useState(false);
 
+  // Add this function to fetch calendar availability
+  const loadCalendarAvailability = async () => {
+    if (!listing?.id) return;
+
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      
+      const response = await api(
+        `/api/availability/${listing.id}/calendar?year=${year}&month=${month}`
+      );
+      
+      if (response?.availability) {
+        setAvailabilityData(response.availability);
+        
+        // Also update unavailable dates for backward compatibility
+        const unavailable = [];
+        for (const [dateStr, data] of Object.entries(response.availability)) {
+          if (!data.available) {
+            unavailable.push(dateStr);
+          }
+        }
+        setUnavailableDates(new Set(unavailable));
+      }
+    } catch (error) {
+      console.error("Failed to load calendar availability:", error);
+    }
+  };
+
   // Intersection Observer for floating booking bar
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -109,6 +139,13 @@ export default function PublicListingDetail() {
 
     return () => observer.disconnect();
   }, []);
+
+  // Call this when the month changes
+  useEffect(() => {
+    if (listing?.id) {
+      loadCalendarAvailability();
+    }
+  }, [currentMonth, listing?.id]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -226,9 +263,9 @@ export default function PublicListingDetail() {
 
           // Show helpful toast for specific cases
           if (response.code === "NO_BOOKINGS") {
-            toast.info("Book this space to leave a review!");
+            toast("Book this space to leave a review!");
           } else if (response.code === "BOOKING_NOT_COMPLETED") {
-            toast.info(`Complete your booking to review`);
+            toast(`Complete your booking to review`);
           }
           return;
         }
@@ -273,22 +310,14 @@ export default function PublicListingDetail() {
     setCheckingAvailability(true);
 
     try {
-      console.log(
-        "Calling availability API for listing:",
-        listing.id,
-        "date:",
-        date
-      );
-      const response = await api(
-        `/api/publicListings/${listing.id}/availability?date=${date}`
-      );
-
-      const unavailableDates = response?.unavailableDates || [];
-      setUnavailableDates(new Set(unavailableDates));
-
-      if (unavailableDates.includes(date)) {
+      // ✅ Just check the data we already have from loadCalendarAvailability
+      const dayData = availabilityData[date];
+      
+      if (!dayData || !dayData.available) {
         setBookingData((prev) => ({ ...prev, startTime: "", endTime: "" }));
         toast.error("Selected date is unavailable");
+      } else {
+        toast.success(`Date ${date} is available!`);
       }
     } catch (error) {
       console.error("Failed to check availability:", error);
@@ -309,23 +338,130 @@ export default function PublicListingDetail() {
   };
 
   const daysInMonth = () => {
-    const y = currentMonth.getFullYear();
-    const m = currentMonth.getMonth();
-    return {
-      days: new Date(y, m + 1, 0).getDate(),
-      start: new Date(y, m, 1).getDay(),
-    };
-  };
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  
+  // Get the last day of the month (day 0 of next month gives last day of current month)
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  
+  // Get what day of the week the first day is (0 = Sunday, 6 = Saturday)
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+  const result = { days: lastDay, start: firstDayOfWeek };
+console.log('daysInMonth result:', result);
+return result;
+  // return {
+  //   days: lastDay,
+  //   start: firstDayOfWeek
+  // };
+};
 
-  const selectDate = (day) => {
-    const selectedDate = new Date(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth(),
-      day
+// FIXED selectDate function - Replace your existing one with this:
+
+const selectDate = (day) => {
+  const selectedDate = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth(),
+    day
+  );
+  selectedDate.setHours(0, 0, 0, 0);
+  
+  const dateStr = formatDateLocal(selectedDate);
+  
+  // Create fresh today for comparison
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  
+  // Check if date is in the past
+  if (selectedDate < todayDate) {
+    toast.error("Cannot select past dates");
+    return;
+  }
+  
+  // Get availability data for this date
+  const dayAvailability = availabilityData[dateStr];
+  
+  // Debug logging
+  console.log(`Day ${day}: dateStr=${dateStr}, hasAvailData=${!!dayAvailability}`);
+  
+  // If no availability data exists, treat as unavailable
+  if (!dayAvailability) {
+    toast.error("No availability data for this date");
+    console.log("Missing availability for:", dateStr);
+    return;
+  }
+  
+  // Check availability status
+  if (dayAvailability.status === 'blocked' || dayAvailability.status === 'closed') {
+    const reason = dayAvailability.status === 'blocked' ? 'Blocked' : 'Closed';
+    toast.error(`This date is ${reason.toLowerCase()}`);
+    return;
+  }
+  
+  if (dayAvailability.status === 'fully-booked') {
+    toast.error("This date is fully booked");
+    return;
+  }
+  
+  if (dayAvailability.status === 'partially-booked') {
+    const availableCount = dayAvailability.availableCount || 0;
+    const bookedCount = dayAvailability.bookedCount || 0;
+    
+    // Format available time slots into readable ranges
+    const availableRanges = formatTimeSlotRanges(dayAvailability.availableSlots || []);
+    const bookedRanges = formatTimeSlotRanges(dayAvailability.bookedSlots || []);
+    
+    toast(
+      <div className="text-left max-w-sm">
+        <p className="font-bold mb-2 text-amber-700">⚠️ Partial Availability</p>
+        <div className="space-y-2">
+          <div>
+            <p className="text-sm font-medium text-stone-700 mb-1">Available Time Slots:</p>
+            {availableRanges.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {availableRanges.map((range, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded">
+                    {range}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-stone-500">No available slots</p>
+            )}
+          </div>
+          
+          <div>
+            <p className="text-sm font-medium text-stone-700 mb-1">Booked Time Slots:</p>
+            {bookedRanges.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {bookedRanges.map((range, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded line-through">
+                    {range}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-stone-500">No booked slots</p>
+            )}
+          </div>
+          
+          <p className="text-xs text-stone-500 mt-2">
+            {availableCount} slot{availableCount !== 1 ? 's' : ''} available • {bookedCount} slot{bookedCount !== 1 ? 's' : ''} booked
+          </p>
+        </div>
+      </div>,
+      { 
+        duration: 6000,
+        icon: '📅',
+        style: {
+          background: '#fffbeb',
+          color: '#92400e',
+          border: '1px solid #f59e0b',
+          maxWidth: '420px'
+        }
+      }
     );
-    if (selectedDate < today || isDateUnavailable(selectedDate)) return;
-
-    const dateStr = formatDateLocal(selectedDate);
+    
+    // Still allow selection of partially booked dates
     setBookingData({
       ...bookingData,
       date: dateStr,
@@ -333,8 +469,126 @@ export default function PublicListingDetail() {
       endTime: "",
     });
     setShowCalendar(false);
-
+    
+    // Open time slots dropdown automatically
+    setTimeout(() => {
+      if (timeSlotsRef.current) {
+        setShowTimeSlots("start");
+      }
+    }, 100);
+    
     toast.success(`Selected ${formatDateDisplay(selectedDate)}`);
+    return;
+  }
+
+  // Fully available date
+  setBookingData({
+    ...bookingData,
+    date: dateStr,
+    startTime: "",
+    endTime: "",
+  });
+  setShowCalendar(false);
+  
+  // Open time slots dropdown automatically
+  setTimeout(() => {
+    if (timeSlotsRef.current) {
+      setShowTimeSlots("start");
+    }
+  }, 100);
+
+  toast.success(`Selected ${formatDateDisplay(selectedDate)} - All slots available!`);
+};
+
+// Helper function to group consecutive time slots into ranges
+const formatTimeSlotRanges = (slots) => {
+  if (!slots || slots.length === 0) return [];
+  
+  // Sort slots by start time
+  const sortedSlots = [...slots].sort((a, b) => 
+    timeToMinutes(a.start) - timeToMinutes(b.start)
+  );
+  
+  const ranges = [];
+  let currentRange = null;
+  
+  sortedSlots.forEach((slot, index) => {
+    const slotStart = timeToMinutes(slot.start);
+    const slotEnd = timeToMinutes(slot.end);
+    
+    if (!currentRange) {
+      currentRange = { start: slotStart, end: slotEnd };
+    } else {
+      // Check if this slot is consecutive (30 min after previous end)
+      if (slotStart === currentRange.end) {
+        currentRange.end = slotEnd;
+      } else {
+        // End current range and start new one
+        ranges.push(formatMinutesToRange(currentRange.start, currentRange.end));
+        currentRange = { start: slotStart, end: slotEnd };
+      }
+    }
+    
+    // If this is the last slot, add the current range
+    if (index === sortedSlots.length - 1) {
+      ranges.push(formatMinutesToRange(currentRange.start, currentRange.end));
+    }
+  });
+  
+  return ranges;
+};
+
+// Helper to convert minutes to time range string
+const formatMinutesToRange = (startMinutes, endMinutes) => {
+  const startTime = formatMinutesToTime(startMinutes);
+  const endTime = formatMinutesToTime(endMinutes);
+  return `${startTime} - ${endTime}`;
+};
+
+// Helper to convert time string to minutes
+const timeToMinutes = (time) => {
+  if (!time) return 0;
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+// Helper to convert minutes to time string
+const formatMinutesToTime = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+  const formatTimeSlotsDisplay = (slots) => {
+    if (!slots || slots.length === 0) return "None";
+    if (slots.length === 1) return slots[0];
+    
+    // Group consecutive slots
+    const ranges = [];
+    let start = slots[0];
+    let end = slots[0];
+    
+    for (let i = 1; i < slots.length; i++) {
+      const current = slots[i];
+      const prev = slots[i - 1];
+      
+      // Check if slots are consecutive (30 min apart)
+      const [prevH, prevM] = prev.split(":").map(Number);
+      const [currH, currM] = current.split(":").map(Number);
+      const prevMinutes = prevH * 60 + prevM;
+      const currMinutes = currH * 60 + currM;
+      
+      if (currMinutes - prevMinutes === 30) {
+        end = current;
+      } else {
+        ranges.push(start === end ? start : `${start}-${end}`);
+        start = current;
+        end = current;
+      }
+    }
+    
+    ranges.push(start === end ? start : `${start}-${end}`);
+    return ranges.join(", ");
   };
 
   const isDateUnavailable = (date) => {
@@ -342,14 +596,15 @@ export default function PublicListingDetail() {
     return unavailableDates.has(dateStr);
   };
 
-  const isPastDate = (day) => {
-    const d = new Date(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth(),
-      day
-    );
-    return d < today;
-  };
+ const isPastDate = (day) => {
+  const d = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth(),
+    day
+  );
+  d.setHours(0, 0, 0, 0);
+  return d < today; // today already has hours set to 0,0,0,0
+};
 
   const formatDateDisplay = (date) => {
     return date.toLocaleDateString("en-US", {
@@ -411,15 +666,32 @@ export default function PublicListingDetail() {
     ];
     return listing.operatingHours[dayNames[dayOfWeek]];
   };
-
-  const startSlots =
-    bookingData.date && listing?.operatingHours
-      ? generateTimeSlots(
-          getOperatingHoursForDate(new Date(bookingData.date))?.start ||
-            "09:00",
-          getOperatingHoursForDate(new Date(bookingData.date))?.end || "21:00"
-        )
-      : [];
+      const startSlots = useMemo(() => {
+  if (!bookingData.date || !listing?.operatingHours) return [];
+  
+  const dayAvailability = availabilityData[bookingData.date];
+  const operatingHours = getOperatingHoursForDate(new Date(bookingData.date));
+  
+  if (!operatingHours || operatingHours.closed) return [];
+  
+  // Generate all possible slots
+  const allSlots = generateTimeSlots(
+    operatingHours.start || "09:00",
+    operatingHours.end || "21:00"
+  );
+  
+  // If we have detailed availability data, filter to only available slots
+  if (dayAvailability?.availableSlots?.length > 0) {
+    // Convert available slots to start times
+    const availableStartTimes = dayAvailability.availableSlots.map(slot => slot.start);
+    
+    // Filter all slots to only include those that start at available times
+    return allSlots.filter(slot => availableStartTimes.includes(slot));
+  }
+  
+  // If no detailed data, return all slots
+  return allSlots;
+}, [bookingData.date, listing?.operatingHours, availabilityData]);
 
   const endSlots =
     bookingData.startTime && listing?.operatingHours
@@ -491,14 +763,28 @@ export default function PublicListingDetail() {
   };
 
   const handleBooking = async () => {
+    // Check if user is logged in FIRST
+    if (!user) {
+      toast.error(
+        <div className="flex flex-col gap-2">
+          <span className="font-bold">Please log in to book</span>
+          <span className="text-sm">Create an account or sign in to continue</span>
+        </div>,
+        { duration: 4000 }
+      );
+      
+      // Redirect to login with return URL
+      setTimeout(() => {
+        router.push(`/auth/login?redirect=${encodeURIComponent(`/public/listings/${id}`)}`)
+      }, 2000);
+      return;
+    }
+
     if (!validateBooking()) return;
 
     setIsBooking(true);
 
     try {
-      // Calculate duration here to show in the request
-      const duration = calculateDuration();
-
       const data = await api("/api/bookings", {
         method: "POST",
         body: {
@@ -508,8 +794,7 @@ export default function PublicListingDetail() {
           startTime: bookingData.startTime,
           endTime: bookingData.endTime,
           guests: bookingData.guests,
-          specialRequests: "", // Add this if you have special requests field
-          // Don't send totalPrice - backend will calculate it
+          specialRequests: "",
         },
         headers: {
           "Content-Type": "application/json",
@@ -526,7 +811,6 @@ export default function PublicListingDetail() {
         { duration: 4000 }
       );
 
-      // Reset form
       setBookingData({
         date: "",
         startTime: "",
@@ -534,7 +818,6 @@ export default function PublicListingDetail() {
         guests: Math.max(1, listing?.minCapacity || 1),
       });
 
-      // Navigate to bookings page after delay
       setTimeout(() => {
         router.push("/bookings");
       }, 2000);
@@ -1791,214 +2074,315 @@ export default function PublicListingDetail() {
                         </svg>
                       </div>
                     </button>
+                   
+{/* Interactive Calendar - Complete Code */}
+{showCalendar && (
+  <div className="mt-2 bg-gradient-to-br from-white to-stone-50 rounded-2xl shadow-xl border border-stone-200 p-6 animate-in fade-in-0 zoom-in-95 duration-200">
+    {/* Calendar Header */}
+    <div className="flex items-center justify-between mb-6">
+      <button
+        onClick={() =>
+          setCurrentMonth(
+            new Date(
+              currentMonth.getFullYear(),
+              currentMonth.getMonth() - 1
+            )
+          )
+        }
+        className="p-2 hover:scale-110 transition-all active:scale-95"
+        aria-label="Previous month"
+      >
+        <svg
+          className="w-5 h-5 text-stone-400 hover:text-emerald-600 transition-colors"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2.5}
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </button>
 
-                    {showCalendar && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-stone-200 p-4 z-50">
-                        <div className="flex items-center justify-between mb-4">
-                          <button
-                            onClick={() =>
-                              setCurrentMonth(
-                                new Date(
-                                  currentMonth.getFullYear(),
-                                  currentMonth.getMonth() - 1
-                                )
-                              )
-                            }
-                            className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-stone-600"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 19l-7-7 7-7"
-                              />
-                            </svg>
-                          </button>
-                          <div className="font-bold text-stone-900">
-                            {MONTHS[currentMonth.getMonth()]}{" "}
-                            {currentMonth.getFullYear()}
-                          </div>
-                          <button
-                            onClick={() =>
-                              setCurrentMonth(
-                                new Date(
-                                  currentMonth.getFullYear(),
-                                  currentMonth.getMonth() + 1
-                                )
-                              )
-                            }
-                            className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-stone-600"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+      <div className="text-center">
+        <h3 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+          {MONTHS[currentMonth.getMonth()]}
+        </h3>
+        <p className="text-m text-stone-500 font-medium mt-0.5">
+          {currentMonth.getFullYear()}
+        </p>
+      </div>
 
-                        <div className="grid grid-cols-7 gap-1 mb-2">
-                          {DAYS.map((d, i) => (
-                            <div
-                              key={i}
-                              className="text-center text-xs font-bold text-stone-500 py-2"
-                            >
-                              {d}
-                            </div>
-                          ))}
-                        </div>
+      <button
+        onClick={() =>
+          setCurrentMonth(
+            new Date(
+              currentMonth.getFullYear(),
+              currentMonth.getMonth() + 1
+            )
+          )
+        }
+        className="p-2 hover:scale-110 transition-all active:scale-95"
+        aria-label="Next month"
+      >
+        <svg
+          className="w-5 h-5 text-stone-400 hover:text-emerald-600 transition-colors"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2.5}
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+      </button>
+    </div>
 
-                        <div className="grid grid-cols-7 gap-1">
-                          {[...Array(daysInMonth().start)].map((_, i) => (
-                            <div key={`empty-${i}`} />
-                          ))}
-                          {[...Array(daysInMonth().days)].map((_, i) => {
-                            const day = i + 1;
-                            const date = new Date(
-                              currentMonth.getFullYear(),
-                              currentMonth.getMonth(),
-                              day
-                            );
-                            const past = isPastDate(day);
-                            const unavailable = isDateUnavailable(date);
-                            const selected =
-                              bookingData.date === formatDateLocal(date);
-                            const isToday =
-                              date.toDateString() === today.toDateString();
+    {/* Weekday Headers */}
+    <div className="grid grid-cols-7 gap-2 mb-2">
+      {DAYS.map((day, i) => (
+        <div
+          key={i}
+          className="text-center text-auto font-bold text-stone-500 py-1"
+        >
+          {day}
+        </div>
+      ))}
+    </div>
 
-                            return (
-                              <button
-                                key={day}
-                                onClick={() => selectDate(day)}
-                                disabled={past || unavailable}
-                                className={`aspect-square flex items-center justify-center text-sm font-medium rounded-lg transition-all relative
-                                  ${
-                                    past
-                                      ? "text-stone-300 cursor-not-allowed"
-                                      : ""
-                                  }
-                                  ${
-                                    unavailable
-                                      ? "text-stone-300 cursor-not-allowed line-through"
-                                      : ""
-                                  }
-                                  ${
-                                    selected
-                                      ? "bg-emerald-500 text-white"
-                                      : !past && !unavailable
-                                      ? "hover:bg-emerald-50 text-stone-800"
-                                      : ""
-                                  }
-                                `}
-                                title={unavailable ? "Unavailable" : ""}
-                              >
-                                {day}
-                                {isToday && !selected && (
-                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+    {/* Calendar Grid */}
+    <div className="grid grid-cols-7 gap-2">
+      {/* Empty cells for days before month starts */}
+      {[...Array(daysInMonth().start)].map((_, i) => (
+        <div key={`empty-${i}`} className="aspect-square" />
+      ))}
+
+      {/* Calendar days */}
+{[...Array(daysInMonth().days)].map((_, i) => {
+  const day = i + 1;
+  const date = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth(),
+    day
+  );
+  date.setHours(0, 0, 0, 0);
+  
+  const dateStr = formatDateLocal(date);
+  
+  // Create fresh today for comparison
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  const isPast = date < todayDate;
+  
+  const isToday = date.getTime() === todayDate.getTime();
+  const selected = bookingData.date === dateStr;
+
+  // Get availability data
+  const dayAvailability = availabilityData[dateStr];
+  let availabilityStatus = "available";
+  let bgColor = "bg-stone-50 hover:bg-stone-100";
+  let textColor = "text-stone-800";
+  let borderColor = "border-stone-200";
+  let tooltipText = "Available";
+
+  if (isPast) {
+    availabilityStatus = "past";
+    bgColor = "bg-stone-100";
+    textColor = "text-stone-400";
+    borderColor = "border-stone-200";
+    tooltipText = "Past date";
+  } else if (dayAvailability) {
+    if (
+      dayAvailability.status === "blocked" ||
+      dayAvailability.status === "closed"
+    ) {
+      availabilityStatus = "unavailable";
+      bgColor = "bg-red-50/50";
+      textColor = "text-red-500";
+      borderColor = "border-red-200";
+      tooltipText =
+        dayAvailability.status === "blocked" ? "Blocked" : "Closed";
+    } else if (dayAvailability.status === "fully-booked") {
+      availabilityStatus = "fully-booked";
+      bgColor = "bg-red-50/50";
+      textColor = "text-red-500";
+      borderColor = "border-red-200";
+      tooltipText = "Fully booked";
+    } else if (dayAvailability.status === "partially-booked") {
+      availabilityStatus = "partially-booked";
+      bgColor = "bg-amber-50/50 hover:bg-amber-50";
+      textColor = "text-amber-700";
+      borderColor = "border-amber-200";
+      const availableCount = dayAvailability.availableCount || 0;
+      tooltipText = `${availableCount} slot${
+        availableCount !== 1 ? "s" : ""
+      } available`;
+    } else if (dayAvailability.status === "available") {
+      availabilityStatus = "available";
+      bgColor = "bg-emerald-50/50 hover:bg-emerald-100/50";
+      textColor = "text-emerald-700";
+      borderColor = "border-emerald-200";
+      tooltipText = "All slots available";
+    }
+  }
+  
+  // FIXED: Simplified disabled logic
+  const isDisabled = isPast || 
+                     availabilityStatus === "unavailable" || 
+                     availabilityStatus === "fully-booked";
+
+  return (
+    <button
+      key={day}
+      onClick={() => selectDate(day)}
+      disabled={isDisabled}
+      className={`
+        aspect-square w-full rounded-lg transition-all duration-200 flex flex-col items-center justify-center
+        ${bgColor} ${textColor} ${borderColor} border
+        ${isToday && !selected ? "ring-2 ring-emerald-400 ring-offset-1" : ""}
+        ${selected ? "!bg-gradient-to-br from-emerald-500 to-teal-500 !text-white !border-emerald-500 shadow-md scale-105" : ""}
+        ${!isDisabled ? "hover:scale-105 hover:shadow-sm active:scale-95" : "cursor-not-allowed opacity-60"}
+      `}
+      title={tooltipText}
+    >
+      {/* Day Number */}
+      <span className={`text-medium font-semibold ${selected ? "text-white" : ""}`}>
+        {day}
+      </span>
+
+      {/* Partial booking indicator */}
+      {availabilityStatus === "partially-booked" && !selected && (
+        <div className="absolute inset-x-0 bottom-0.5 flex justify-center">
+          <div className="w-3/4 h-0.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400" />
+        </div>
+      )}
+    </button>
+  );
+})}
+    </div>
+
+    {/* Legend */}
+    <div className="mt-4 pt-4 border-t border-stone-200">
+      <div className="flex flex-wrap items-center justify-center gap-3 text-[10px]">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-emerald-50/50 border border-emerald-200"></div>
+          <span className="text-stone-600 font-medium">Available</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-amber-50/50 border border-amber-200"></div>
+          <span className="text-stone-600 font-medium">Partial</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-red-50/50 border border-red-200"></div>
+          <span className="text-stone-600 font-medium">Unavailable</span>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
                   </div>
 
                   {/* Time Slots */}
-                  <div ref={timeSlotsRef} className="relative">
-                    <label className="block text-sm font-bold text-stone-900 mb-2">
-                      ⏰ Time
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowTimeSlots(
-                              showTimeSlots === "start" ? false : "start"
-                            );
-                            setShowCalendar(false);
-                            setShowGuests(false);
-                          }}
-                          className={`w-full p-3 rounded-lg font-medium text-sm transition-all border ${
-                            bookingData.startTime
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                              : "border-stone-200 hover:border-emerald-400 text-stone-600"
-                          }`}
-                        >
-                          {bookingData.startTime || "Start time"}
-                        </button>
-                      </div>
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowTimeSlots(
-                              showTimeSlots === "end" ? false : "end"
-                            );
-                            setShowCalendar(false);
-                            setShowGuests(false);
-                          }}
-                          disabled={!bookingData.startTime}
-                          className={`w-full p-3 rounded-lg font-medium text-sm transition-all border ${
-                            bookingData.endTime
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                              : !bookingData.startTime
-                              ? "border-stone-100 bg-stone-50 text-stone-400 cursor-not-allowed"
-                              : "border-stone-200 hover:border-emerald-400 text-stone-600"
-                          }`}
-                        >
-                          {bookingData.endTime || "End time"}
-                        </button>
-                      </div>
-                    </div>
+                
+{/* Time Slots */}
+<div ref={timeSlotsRef} className="relative">
+  <label className="block text-sm font-bold text-stone-900 mb-2">
+    ⏰ Time
+  </label>
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          setShowTimeSlots(
+            showTimeSlots === "start" ? false : "start"
+          );
+          setShowCalendar(false);
+          setShowGuests(false);
+        }}
+        className={`w-full p-3 rounded-lg font-medium text-sm transition-all border flex items-center justify-between h-12 ${
+          bookingData.startTime
+            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+            : "border-stone-200 hover:border-emerald-400 text-stone-600"
+        }`}
+      >
+        <span className="truncate">{bookingData.startTime || "Start time"}</span>
+        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          setShowTimeSlots(
+            showTimeSlots === "end" ? false : "end"
+          );
+          setShowCalendar(false);
+          setShowGuests(false);
+        }}
+        disabled={!bookingData.startTime}
+        className={`w-full p-3 rounded-lg font-medium text-sm transition-all border flex items-center justify-between h-12 ${
+          bookingData.endTime
+            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+            : !bookingData.startTime
+            ? "border-stone-100 bg-stone-50 text-stone-400 cursor-not-allowed"
+            : "border-stone-200 hover:border-emerald-400 text-stone-600"
+        }`}
+      >
+        <span className="truncate">{bookingData.endTime || "End time"}</span>
+        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
+  </div>
 
-                    {showTimeSlots &&
-                      (showTimeSlots === "start" ? startSlots : endSlots)
-                        .length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-stone-200 p-4 z-50 max-h-80 overflow-y-auto">
-                          <div className="grid grid-cols-3 gap-2">
-                            {(showTimeSlots === "start"
-                              ? startSlots
-                              : endSlots
-                            ).map((time) => (
-                              <button
-                                key={time}
-                                onClick={() => {
-                                  setBookingData((prev) => ({
-                                    ...prev,
-                                    [showTimeSlots === "start"
-                                      ? "startTime"
-                                      : "endTime"]: time,
-                                    ...(showTimeSlots === "start"
-                                      ? { endTime: "" }
-                                      : {}),
-                                  }));
-                                  setShowTimeSlots(false);
-                                }}
-                                className="p-2 text-sm font-medium text-stone-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors"
-                              >
-                                {time}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                  </div>
+  {/* Removed the "Selected date: ..." summary since it's redundant */}
+
+  {showTimeSlots &&
+    (showTimeSlots === "start" ? startSlots : endSlots)
+      .length > 0 && (
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-stone-200 p-4 z-50 max-h-80 overflow-y-auto">
+        <div className="text-xs text-stone-500 font-medium mb-3">
+          Available time slots
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {(showTimeSlots === "start" ? startSlots : endSlots).map((time) => (
+            <button
+              key={time}
+              onClick={() => {
+                setBookingData((prev) => ({
+                  ...prev,
+                  [showTimeSlots === "start" ? "startTime" : "endTime"]: time,
+                  ...(showTimeSlots === "start" ? { endTime: "" } : {}),
+                }));
+                setShowTimeSlots(false);
+              }}
+              className={`p-2 text-sm font-medium rounded-lg transition-colors ${
+                (showTimeSlots === "start" && bookingData.startTime === time) || 
+                (showTimeSlots === "end" && bookingData.endTime === time)
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-stone-50 text-stone-700 hover:bg-stone-100 hover:text-emerald-700'
+              }`}
+            >
+              {time}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+</div>
 
                   {/* Guests */}
                   <div ref={guestsRef} className="relative">
