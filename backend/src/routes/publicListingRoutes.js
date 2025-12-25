@@ -2,7 +2,10 @@ import express from "express";
 import * as controller from "../controllers/publicListingController.js";
 import { checkCanReview } from '../controllers/reviewController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
-
+import {
+  getPublicListingReviews,
+  getPublicReviewStats
+} from "../controllers/hostReviewController.js";
 const router = express.Router();
 
 // --- Public listings routes --- //
@@ -13,6 +16,8 @@ router.get("/featured", controller.getFeaturedListings);
 // Search listings
 router.get("/search", controller.searchListings);
 
+router.get("/:id/reviews", getPublicListingReviews);
+router.get("/:id/reviews/stats", getPublicReviewStats);
 // Get listings by location
 router.get("/location/:location", controller.getListingsByLocation);
 

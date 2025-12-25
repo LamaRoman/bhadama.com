@@ -1,25 +1,35 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "../app/contexts/AuthContext.js"; // Adjust path as needed
 
-export const ProtectedRoute = ({ children, user, role }) => {
+export const ProtectedRoute = ({ children, role }) => {
   const router = useRouter();
+  const { user, loading } = useAuth();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Only act if user has finished loading
-    if (user === null) return;
+    // Wait for auth to finish loading
+    if (loading) return;
 
+    // user is `false` when not logged in, or an object when logged in
     if (!user) {
       router.push("/auth/login");
     } else if (role && user.role !== role) {
       router.push("/auth/login");
     } else {
-      setIsReady(true); // User is authorized
+      setIsReady(true);
     }
-  }, [user, role, router]);
+  }, [user, loading, role, router]);
 
-  if (!isReady) return null; // Wait until user is known
+  // Show nothing while auth is loading or checking
+  if (loading || !isReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return children;
 };

@@ -69,16 +69,18 @@ export default function Navbar() {
             </>
           ) : (
             <div className="relative flex items-center gap-4" ref={dropdownRef}>
-              {/* Quick Action Links */}
-              <Link
-                href="/host/listings/new"
-                className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-50 to-lime-50 text-emerald-700 font-medium rounded-full border border-emerald-100 hover:shadow-md transition-all duration-200 hover:scale-105"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                List Space
-              </Link>
+              {/* Quick Action Links - Only show for HOST users */}
+              {user.role === "HOST" && (
+                <Link
+                  href="/host/listings/new"
+                  className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-50 to-lime-50 text-emerald-700 font-medium rounded-full border border-emerald-100 hover:shadow-md transition-all duration-200 hover:scale-105"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  List Space
+                </Link>
+              )}
 
               {/* User Menu */}
               <button

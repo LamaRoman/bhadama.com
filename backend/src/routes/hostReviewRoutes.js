@@ -6,12 +6,12 @@ import {
   markReviewFeedback,
   getReviewStats
 } from '../controllers/hostReviewController.js';
-import { authenticate } from '../middleware/authMiddleware.js';
+import { authenticate, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All routes are protected
-router.use(authenticate);
+// All routes are protected - FIX: authorize needs config object
+router.use(authenticate, authorize({ minRole: "HOST" }));
 
 // Get all reviews for host (with filters)
 router.get('/', getHostReviews);

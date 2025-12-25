@@ -70,44 +70,31 @@ export async function calculateReviewStats(listingId) {
 }
 
 export async function checkReviewEligibility(listingId, userId) {
-  // Find completed bookings
   const completedBookings = await prisma.booking.findMany({
     where: {
       listingId,
       userId,
       status: "COMPLETED",
-      bookingDate: {
-        lt: new Date()
-      }
+      bookingDate: { lt: new Date() }
     }
   });
 
-  if (completedBookings.length === 0) {
-    return {
-      canReview: false,
-      reason: "No completed bookings found"
-    };
+  if (!completedBookings.length) {
+    return { canReview: false, reason: "No completed bookings found" };
   }
 
-  // Check for existing review
   const existingReview = await prisma.review.findFirst({
     where: {
-      listingId,
-      userId
+      bookingId: completedBookings[0].id
     }
   });
 
   if (existingReview) {
-    return {
-      canReview: false,
-      reason: "Already reviewed",
-      existingReview
-    };
+    return { canReview: false, reason: "Already reviewed" };
   }
 
   return {
     canReview: true,
-    reason: "Eligible to review",
     bookingOptions: completedBookings
   };
 }

@@ -393,25 +393,6 @@ export default function PublicListings() {
           </div>
         )}
       </section>
-
-      {/* Floating CTA */}
-      <div className="fixed bottom-8 right-8 z-50 animate-bounce-slow">
-        <Link
-          href="/host/listings/new"
-          className="group flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-lime-400 to-emerald-500 text-stone-900 rounded-full font-bold shadow-2xl hover:shadow-lime-500/50 transform hover:scale-105 transition-all duration-300"
-        >
-          <span className="text-2xl group-hover:rotate-12 transition-transform">
-            ✨
-          </span>
-          <div className="text-left">
-            <div className="font-black text-lg">List Your Space</div>
-            <div className="text-xs opacity-80">Earn extra income</div>
-          </div>
-          <span className="text-2xl group-hover:translate-x-2 transition-transform">
-            →
-          </span>
-        </Link>
-      </div>
     </div>
   );
 }

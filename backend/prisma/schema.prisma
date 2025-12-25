@@ -217,6 +217,8 @@ model Booking {
   @@index([listingId])
 }
 
+// REPLACE your Review model in schema.prisma with this:
+
 model Review {
   id          Int       @id @default(autoincrement())
   bookingId   Int       @unique
@@ -238,6 +240,10 @@ model Review {
   helpfulCount Int         @default(0)
   reported     Boolean     @default(false)
 
+  // ADD THESE TWO FIELDS FOR HOST RESPONSES:
+  hostResponse  String?
+  respondedAt   DateTime?
+
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -249,6 +255,7 @@ model Review {
 
   @@index([listingId])
 }
+
 
 //////////////////// ADMIN MODELS ////////////////////
 

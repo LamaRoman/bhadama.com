@@ -33,51 +33,61 @@ const updateListingRating = async (listingId) => {
 export const getReviews = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const sort = req.query.sort || "newest";
+
     if (isNaN(listingId))
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid listing ID" });
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
 
-    const reviews = await prisma.review.findMany({
-      where: { listingId },
-      include: {
-        user: { select: { id: true, name: true, profilePhoto: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const orderBy =
+      sort === "highest"
+        ? { rating: "desc" }
+        : sort === "lowest"
+        ? { rating: "asc" }
+        : { createdAt: "desc" };
 
-    const totalReviews = reviews.length;
-    const averageRating =
-      totalReviews > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
-        : 0;
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where: { listingId },
+        include: {
+          user: { select: { id: true, name: true, profilePhoto: true } },
+        },
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.review.count({ where: { listingId } }),
+    ]);
 
-    const ratingDistribution = {};
-    for (let i = 1; i <= 5; i++) {
-      ratingDistribution[i] = reviews.filter(
-        (r) => Math.round(r.rating) === i
-      ).length;
-    }
+    const avg =
+      total === 0
+        ? 0
+        : (
+            (
+              await prisma.review.aggregate({
+                where: { listingId },
+                _avg: { rating: true },
+              })
+            )._avg.rating || 0
+          );
 
     res.json({
       success: true,
       reviews,
-      totalReviews,
-      averageRating: parseFloat(averageRating.toFixed(1)),
-      ratingDistribution,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+      },
+      averageRating: Number(avg.toFixed(1)),
     });
   } catch (error) {
     console.error("Get reviews error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch reviews",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
+    res.status(500).json({ success: false, message: "Failed to fetch reviews" });
   }
 };
+
 
 /* --------------------------- CHECK CAN REVIEW --------------------------- */
 export const checkCanReview = async (req, res) => {
@@ -225,10 +235,8 @@ export const checkCanReview = async (req, res) => {
 export const createReview = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    
-    // FIX: Get userId from either req.user or req.body
-    const userId = req.user?.id || req.body.userId;
-    
+    const userId = req.user?.id;
+
     const {
       bookingId,
       rating,
@@ -242,41 +250,45 @@ export const createReview = async (req, res) => {
       value = 5,
     } = req.body;
 
-    console.log('Create review data:', { userId, listingId, bookingId, rating });
-
     if (!userId)
-      return res
-        .status(401)
-        .json({ success: false, message: "User not authenticated" });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
 
     if (!listingId || isNaN(listingId))
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid listing ID" });
-    
+      return res.status(400).json({ success: false, message: "Invalid listing ID" });
+
     if (!bookingId || !rating || !comment)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Booking ID, rating, and comment are required",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID, rating, and comment are required",
+      });
 
-    const existingReview = await prisma.review.findFirst({
-      where: { bookingId },
+    const normalizedRating = Math.min(Math.max(Number(rating), 1), 5);
+
+    // 🔒 Validate booking ownership + status
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId,
+        listingId,
+        status: "COMPLETED",
+      },
     });
-    if (existingReview)
-      return res
-        .status(400)
-        .json({ success: false, message: "Already reviewed this booking" });
 
-    // FIX: Use connect syntax for all relations
+    if (!booking)
+      return res.status(403).json({
+        success: false,
+        message: "Invalid or incomplete booking",
+      });
+
+    if (booking.hasReviewed)
+      return res.status(400).json({
+        success: false,
+        message: "This booking has already been reviewed",
+      });
+
     const review = await prisma.review.create({
       data: {
-        booking: { connect: { id: bookingId } },
-        listing: { connect: { id: listingId } },
-        user: { connect: { id: userId } },
-        rating,
+        rating: normalizedRating,
         title,
         comment,
         cleanliness,
@@ -285,6 +297,9 @@ export const createReview = async (req, res) => {
         location,
         checkin,
         value,
+        booking: { connect: { id: bookingId } },
+        listing: { connect: { id: listingId } },
+        user: { connect: { id: userId } },
       },
       include: {
         user: { select: { id: true, name: true, profilePhoto: true } },
@@ -295,22 +310,21 @@ export const createReview = async (req, res) => {
       where: { id: bookingId },
       data: { hasReviewed: true },
     });
-    await updateListingRating(listingId);
 
-    res
-      .status(201)
-      .json({ success: true, message: "Review created successfully", review });
+    res.status(201).json({
+      success: true,
+      message: "Review created successfully",
+      review,
+    });
   } catch (error) {
     console.error("Create review error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to create review",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to create review",
+    });
   }
 };
+
 
 /* --------------------------- UPDATE REVIEW --------------------------- */
 export const updateReview = async (req, res) => {
@@ -319,41 +333,47 @@ export const updateReview = async (req, res) => {
     const userId = req.user.id;
     const { rating, title, comment } = req.body;
 
-    const review = await prisma.review.findFirst({ where: { id, userId } });
-    if (!review)
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "Review not found or you are not authorized",
-        });
+    const review = await prisma.review.findFirst({
+      where: { id, userId },
+    });
 
-    const updatedReview = await prisma.review.update({
+    if (!review)
+      return res.status(404).json({
+        success: false,
+        message: "Review not found or unauthorized",
+      });
+
+    const daysSince = Math.floor(
+      (Date.now() - new Date(review.createdAt)) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysSince > 7)
+      return res.status(403).json({
+        success: false,
+        message: "Review can only be edited within 7 days",
+      });
+
+    const updated = await prisma.review.update({
       where: { id },
       data: {
-        rating: rating ? parseInt(rating) : review.rating,
+        rating: rating ? Math.min(Math.max(Number(rating), 1), 5) : review.rating,
         title: title ?? review.title,
-        comment: comment || review.comment,
+        comment: comment ?? review.comment,
         updatedAt: new Date(),
-      },
-      include: {
-        user: { select: { id: true, name: true, profilePhoto: true } },
       },
     });
 
-    await updateListingRating(review.listingId);
     res.json({
       success: true,
-      message: "Review updated successfully",
-      review: updatedReview,
+      message: "Review updated",
+      review: updated,
     });
   } catch (error) {
     console.error("Update review error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to update review" });
+    res.status(500).json({ success: false, message: "Failed to update review" });
   }
 };
+
 
 /* --------------------------- MARK HELPFUL --------------------------- */
 export const markHelpful = async (req, res) => {
@@ -463,3 +483,4 @@ export const getEligibleBookings = async (req, res) => {
       });
   }
 };
+

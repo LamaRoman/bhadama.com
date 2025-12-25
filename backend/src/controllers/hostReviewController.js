@@ -8,8 +8,50 @@ import { prisma } from "../config/prisma.js";
 // @desc    Get all reviews for host
 // @route   GET /api/host/reviews
 // @access  Private/Host
+
+// @desc    Get review statistics for a listing
+// @route   GET /api/publicListings/:id/reviews/stats
+// @access  Public
+// @desc    Get approved reviews for a listing (public)
+// @route   GET /api/publicListings/:id/reviews
+// @access  Public
+export const getPublicListingReviews = asyncHandler(async (req, res) => {
+  const listingId = parseInt(req.params.id);
+
+  if (isNaN(listingId)) {
+    res.status(400);
+    throw new Error("Invalid listing ID");
+  }
+
+  const reviews = await getListingReviews(listingId);
+  const stats = await calculateReviewStats(listingId);
+
+  res.json({
+    success: true,
+    reviews,
+    stats
+  });
+});
+
+
+export const getPublicReviewStats = asyncHandler(async (req, res) => {
+  const listingId = parseInt(req.params.id);
+
+  if (isNaN(listingId)) {
+    res.status(400);
+    throw new Error("Invalid listing ID");
+  }
+
+  const stats = await calculateReviewStats(listingId);
+
+  res.json({
+    success: true,
+    stats
+  });
+});
+
 export const getHostReviews = asyncHandler(async (req, res) => {
-  const hostId = req.user.id;
+  const hostId = req.user.userId;
 
   const reviews = await prisma.review.findMany({
     where: {
@@ -67,38 +109,104 @@ export const getReviewStats = asyncHandler(async (req, res) => {
 // @desc    Submit reply to a review
 // @route   POST /api/host/reviews/:id/reply
 // @access  Private/Host
+// In hostReviewController.js, update submitReviewReply:
+
+// In hostReviewController.js, update submitReviewReply:
+// Add this complete function to your hostReviewController.js
+
 export const submitReviewReply = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { response } = req.body;
-  const hostId = req.user.id;
-
-  if (!response?.trim()) {
-    res.status(400);
-    throw new Error("Response text is required");
+  
+  console.log('🔍 [submitReviewReply] Starting...');
+  console.log('🔍 Review ID:', id);
+  console.log('🔍 Response text:', response);
+  console.log('🔍 Full req.user:', req.user);
+  
+  // Get host ID from authenticated user
+  const hostId = req.user?.userId;
+  
+  if (!hostId) {
+    console.error('❌ No userId found in req.user:', req.user);
+    return res.status(401).json({
+      success: false,
+      error: 'User not authenticated'
+    });
   }
 
-  const review = await prisma.review.findUnique({
-    where: { id },
-    include: { listing: true }
-  });
-
-  if (!review || review.listing.hostId !== hostId) {
-    res.status(404);
-    throw new Error("Review not found");
+  if (!response || !response.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Response text is required'
+    });
   }
 
-  const updated = await prisma.review.update({
-    where: { id },
-    data: {
-      hostResponse: response,
-      respondedAt: new Date()
+  const reviewId = parseInt(id);
+  if (isNaN(reviewId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid review ID'
+    });
+  }
+
+  try {
+    // Find the review and verify it belongs to host's listing
+    const review = await prisma.review.findUnique({
+      where: { id: reviewId },
+      include: {
+        listing: {
+          select: { hostId: true }
+        }
+      }
+    });
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: 'Review not found'
+      });
     }
-  });
 
-  res.json({
-    success: true,
-    review: updated
-  });
+    // Verify the review belongs to a listing owned by this host
+    if (review.listing.hostId !== hostId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You can only reply to reviews on your own listings'
+      });
+    }
+
+    // Update the review with host response
+    const updatedReview = await prisma.review.update({
+      where: { id: reviewId },
+      data: {
+        hostResponse: response.trim(),
+        respondedAt: new Date()
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, profilePhoto: true }
+        },
+        listing: {
+          select: { id: true, title: true }
+        }
+      }
+    });
+
+    console.log('✅ Review reply saved successfully');
+
+    res.json({
+      success: true,
+      message: 'Reply submitted successfully',
+      review: updatedReview
+    });
+
+  } catch (error) {
+    console.error('❌ Error submitting review reply:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit reply'
+    });
+  }
 });
 
 
