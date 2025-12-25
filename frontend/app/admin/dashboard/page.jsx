@@ -47,49 +47,63 @@ export default function AdminDashboard() {
     }
   }, [user, dateRange]);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+const fetchDashboardData = async () => {
+  setLoading(true);
+
+  const safeApi = async (url, description) => {
     try {
-      const [
-        statsData, 
-        bookingsData, 
-        usersData, 
-        listingsData, 
-        reviewsData,
-        auditLogsData,
-        suspendedUsersData,
-        featureFlagsData,
-        healthData
-      ] = await Promise.all([
-        api(`/api/admin/stats?range=${dateRange}`),
-        api('/api/admin/bookings/recent'),
-        api('/api/admin/users/recent'),
-        api('/api/admin/listings?limit=5&status=PENDING'),
-        api('/api/admin/reviews/pending'),
-        api('/api/admin/audit-logs'),
-        api('/api/admin/users/suspended'),
-        api('/api/admin/feature-flags'),
-        api('/api/admin/health')
-      ]);
-      
-      setDashboard({
-        stats: statsData,
-        recentBookings: bookingsData,
-        recentUsers: usersData,
-        pendingReviews: reviewsData,
-        listings: listingsData?.listings || [],
-        auditLogs: auditLogsData || [],
-        suspendedUsers: suspendedUsersData || [],
-        featureFlags: featureFlagsData || [],
-        platformHealth: healthData || {}
-      });
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-      toast.error("Failed to load dashboard data");
-    } finally {
-      setLoading(false);
+      const res = await api(url);
+      console.log(`[SUCCESS] ${description}:`, res);
+      return res;
+    } catch (err) {
+      console.error(`[FAIL] ${description} (${url}):`, err);
+      return null; // fallback so other calls continue
     }
   };
+
+  try {
+    const [
+      statsData,
+      bookingsData,
+      usersData,
+      listingsData,
+      reviewsData,
+      auditLogsData,
+      suspendedUsersData,
+      featureFlagsData,
+      healthData
+    ] = await Promise.all([
+      safeApi(`/api/admin/stats?range=${dateRange}`, 'Stats'),
+      safeApi('/api/admin/bookings/recent', 'Recent Bookings'),
+      safeApi('/api/admin/users/recent', 'Recent Users'),
+      safeApi('/api/admin/listings?limit=5&status=PENDING', 'Pending Listings'),
+      safeApi('/api/admin/reviews/pending', 'Pending Reviews'),
+      safeApi('/api/admin/audit-logs', 'Audit Logs'),
+      safeApi('/api/admin/users/suspended', 'Suspended Users'),
+      safeApi('/api/admin/feature-flags', 'Feature Flags'),
+      safeApi('/api/admin/health', 'Platform Health')
+    ]);
+
+    setDashboard({
+      stats: statsData,
+      recentBookings: bookingsData,
+      recentUsers: usersData,
+      pendingReviews: reviewsData,
+      listings: listingsData?.listings || [],
+      auditLogs: auditLogsData || [],
+      suspendedUsers: suspendedUsersData || [],
+      featureFlags: featureFlagsData || [],
+      platformHealth: healthData || {}
+    });
+  } catch (error) {
+    console.error("Unexpected error in fetchDashboardData:", error);
+    toast.error("Failed to load dashboard data (check console)");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {

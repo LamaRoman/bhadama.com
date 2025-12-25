@@ -2,7 +2,7 @@
 import express from "express";
 import 'dotenv/config';
 import cors from "cors";
-
+import hostDashboardRoutes from "./routes/hostDashboardRoutes.js";
 import authRoutes from "./routes/auth.js";
 import hostListingRoutes from "./routes/hostListingRoutes.js";
 import publicListingRoutes from "./routes/publicListingRoutes.js";
@@ -12,6 +12,8 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import { completeExpiredBookings } from "./controllers/bookingController.js";
+import hostReviewRoutes from './routes/hostReviewRoutes.js';
+import { getHostDashboard } from "./controllers/hostDashboardController.js";
 const app = express();
 
 
@@ -45,6 +47,10 @@ app.use("/api/bookings", bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes); // ← ONLY ONCE!
 app.use('/api/admin', adminRoutes);
+app.use("/api/host/dashboard", hostDashboardRoutes);
+app.use('/api/host/reviews', hostReviewRoutes)
+
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! myBigYard Server is working. 🏡");

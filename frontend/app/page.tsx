@@ -8,6 +8,7 @@ export default function Home(){
     <div>
       <main className="p-10">
         <PublicListing/>
+        
       </main>
     </div>
   )

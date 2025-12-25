@@ -1,7 +1,7 @@
 "use client";
 
 import { ProtectedRoute } from "../../../../components/ProtectedRoute";
-import { useAuth } from "../../../../hooks/useAuth";
+import { useAuth } from "../../../contexts/AuthContext.js";
 import Navbar from "../../../../components/Navbar";
 
 export default function BookingsPage(){
