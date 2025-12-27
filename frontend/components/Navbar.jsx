@@ -25,7 +25,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo Section */}
         <Link 
-          href="/public" 
+          href="/" 
           className="flex items-center group"
         >
           <div className="relative">
@@ -49,7 +49,7 @@ export default function Navbar() {
           {!user ? (
             <>
               <Link
-                href="/public"
+                href="/"
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-all duration-200"
               >
                 Browse Spaces
@@ -139,7 +139,7 @@ export default function Navbar() {
                     <div className="mb-2">
                       <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Explore</p>
                       <Link
-                        href="/public"
+                        href="/"
                         onClick={() => setIsDropdownOpen(false)}
                         className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 transition-all group"
                       >

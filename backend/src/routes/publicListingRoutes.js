@@ -6,6 +6,7 @@ import {
   getPublicListingReviews,
   getPublicReviewStats
 } from "../controllers/hostReviewController.js";
+
 const router = express.Router();
 
 // --- Public listings routes --- //
@@ -13,16 +14,21 @@ const router = express.Router();
 // Get featured listings (must be before /:id)
 router.get("/featured", controller.getFeaturedListings);
 
+// Get all amenities for filters
+router.get("/amenities", controller.getAmenities);
+
 // Search listings
 router.get("/search", controller.searchListings);
 
-router.get("/:id/reviews", getPublicListingReviews);
-router.get("/:id/reviews/stats", getPublicReviewStats);
 // Get listings by location
 router.get("/location/:location", controller.getListingsByLocation);
 
 // Get all public listings with optional filters
 router.get("/", controller.getListings);
+
+// Reviews routes (must be before generic /:id)
+router.get("/:id/reviews", getPublicListingReviews);
+router.get("/:id/reviews/stats", getPublicReviewStats);
 
 // Get a single public listing by ID (must come AFTER more specific routes)
 router.get("/:id", controller.getListingById);

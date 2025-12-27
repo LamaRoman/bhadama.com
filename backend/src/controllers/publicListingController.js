@@ -1,12 +1,10 @@
 import * as publicListingService from "../services/publicListingService.js";
-
-/**
- * Get all public listings with optional filters
- * GET /api/publicListings
- */
-
 import { prisma } from '../config/prisma.js';
 
+/**
+ * Get availability for a listing
+ * GET /api/publicListings/:id/availability
+ */
 export const getAvailability = async (req, res) => {
   try {
     const listingId = parseInt(req.params.id);
@@ -18,18 +16,16 @@ export const getAvailability = async (req, res) => {
       });
     }
 
-    // Fetch unavailable dates for this listing
     const bookings = await prisma.booking.findMany({
       where: {
         listingId: listingId,
-        status: 'COMPLETED', // or 'CONFIRMED' depending on your logic
+        status: 'COMPLETED',
       },
       select: {
         bookingDate: true
       }
     });
 
-    // Convert to array of ISO strings for frontend
     const unavailableDates = bookings.map(b => b.bookingDate.toISOString().split('T')[0]);
 
     res.json({
@@ -47,6 +43,10 @@ export const getAvailability = async (req, res) => {
   }
 };
 
+/**
+ * Get all public listings with optional filters and pagination
+ * GET /api/publicListings?search=wedding&page=1&limit=20&sortBy=price_low
+ */
 export async function getListings(req, res) {
   try {
     const filters = {
@@ -54,10 +54,15 @@ export async function getListings(req, res) {
       minPrice: req.query.minPrice,
       maxPrice: req.query.maxPrice,
       search: req.query.search,
+      amenities: req.query.amenities,
+      page: req.query.page || 1,
+      limit: req.query.limit || 20,
+      sortBy: req.query.sortBy || "createdAt",
+      sortOrder: req.query.sortOrder || "desc",
     };
 
-    const listings = await publicListingService.getPublicListings(filters);
-    res.json(listings);
+    const result = await publicListingService.getPublicListings(filters);
+    res.json(result);
   } catch (err) {
     console.error("GET PUBLIC LISTINGS ERROR:", err);
     res.status(500).json({ error: "Server error" });
@@ -76,11 +81,6 @@ export async function getListingById(req, res) {
     const listing = await publicListingService.getPublicListingById(listingId);
     if (!listing) return res.status(404).json({ error: "Listing not found" });
 
-    // ❌ REMOVE THESE 3 LINES:
-    // const bookedSlots = await availabilityService.getBookedSlots(listingId);
-    // res.json({ ...listing, bookedSlots });
-
-    // ✅ JUST RETURN THE LISTING:
     res.json(listing);
   } catch (err) {
     console.error("GET PUBLIC LISTING ERROR:", err);
@@ -90,7 +90,7 @@ export async function getListingById(req, res) {
 
 /**
  * Get featured listings
- * GET /api/publicListings/featured
+ * GET /api/publicListings/featured?limit=6
  */
 export async function getFeaturedListings(req, res) {
   try {
@@ -104,19 +104,19 @@ export async function getFeaturedListings(req, res) {
 }
 
 /**
- * Search listings
- * GET /api/publicListings/search
+ * Search listings with pagination
+ * GET /api/publicListings/search?q=pool&page=1&limit=20
  */
 export async function searchListings(req, res) {
   try {
-    const { q } = req.query;
+    const { q, page = 1, limit = 20 } = req.query;
 
     if (!q || q.trim().length === 0) {
       return res.status(400).json({ error: "Search query is required" });
     }
 
-    const listings = await publicListingService.searchListings(q.trim());
-    res.json(listings);
+    const result = await publicListingService.searchListings(q.trim(), { page, limit });
+    res.json(result);
   } catch (err) {
     console.error("SEARCH LISTINGS ERROR:", err);
     res.status(500).json({ error: "Server error" });
@@ -130,15 +130,30 @@ export async function searchListings(req, res) {
 export async function getListingsByLocation(req, res) {
   try {
     const { location } = req.params;
+    const limit = Number(req.query.limit) || 20;
 
     if (!location || location.trim().length === 0) {
       return res.status(400).json({ error: "Location is required" });
     }
 
-    const listings = await publicListingService.getListingsByLocation(location.trim());
+    const listings = await publicListingService.getListingsByLocation(location.trim(), limit);
     res.json(listings);
   } catch (err) {
     console.error("GET LISTINGS BY LOCATION ERROR:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+}
+
+/**
+ * Get all unique amenities for filters
+ * GET /api/publicListings/amenities
+ */
+export async function getAmenities(req, res) {
+  try {
+    const amenities = await publicListingService.getAllAmenities();
+    res.json({ amenities });
+  } catch (err) {
+    console.error("GET AMENITIES ERROR:", err);
     res.status(500).json({ error: "Server error" });
   }
 }
