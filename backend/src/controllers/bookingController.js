@@ -30,41 +30,94 @@ export const completeExpiredBookings = async () => {
 };
 
 
-export async function createBooking(req, res) {
+export const createBooking = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const { listingId, bookingDate, startTime, endTime, guests, pricingType, specialRequests } = req.body;
+    const { listingId, userId, bookingDate, startTime, endTime, guests } = req.body;
 
-    // Validation
-    if (!listingId || !bookingDate || !startTime || !endTime) {
-      return res.status(400).json({ 
-        error: "Missing required fields: listingId, bookingDate, startTime, endTime" 
+    // Get the listing to check ownership and pricing
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { 
+        id: true,
+        hostId: true, 
+        hourlyRate: true,
+        extraGuestCharge: true,
+        includedGuests: true,
+      }
+    });
+
+    if (!listing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Prevent host from booking their own listing
+    if (listing.hostId === userId) {
+      return res.status(403).json({ 
+        error: "You cannot book your own listing",
+        code: "SELF_BOOKING_NOT_ALLOWED"
       });
     }
 
-    const bookingData = {
-      userId,
-      listingId: parseInt(listingId),
-      bookingDate,
-      startTime,
-      endTime,
-      guests: guests || 1,
-      pricingType: pricingType || "HOURLY",
-      specialRequests,
-    };
+    // Calculate duration in hours
+    const [startH, startM] = startTime.split(":").map(Number);
+    const [endH, endM] = endTime.split(":").map(Number);
+    const duration = ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
 
-    const booking = await bookingService.createBooking(bookingData);
+    // Calculate prices
+    const basePrice = duration * Number(listing.hourlyRate || 0);
+    const extraGuests = Math.max(0, guests - (listing.includedGuests || 10));
+    const extraGuestPrice = extraGuests * Number(listing.extraGuestCharge || 0);
+    const subtotal = basePrice + extraGuestPrice;
+    const serviceFee = subtotal * 0.1; // 10% service fee
+    const tax = subtotal * 0.05; // 5% tax
+    const totalPrice = subtotal + serviceFee + tax;
 
-    res.status(201).json({
-      message: "Booking created successfully",
-      booking,
+    // Create the booking
+    const booking = await prisma.booking.create({
+      data: {
+        listingId,
+        userId,
+        bookingDate: new Date(bookingDate),
+        startTime,
+        endTime,
+        guests,
+        duration,
+        basePrice,
+        extraGuestPrice,
+        serviceFee,
+        tax,
+        totalPrice,
+        status: "CONFIRMED",
+      },
+      include: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+          }
+        }
+      }
     });
-  } catch (err) {
-    console.error("CREATE BOOKING ERROR:", err);
-    res.status(400).json({ error: err.message || "Failed to create booking" });
-  }
-}
 
+    return res.status(201).json({
+      success: true,
+      message: "Booking created successfully",
+      booking: {
+        ...booking,
+        basePrice: Number(booking.basePrice),
+        extraGuestPrice: Number(booking.extraGuestPrice),
+        serviceFee: Number(booking.serviceFee),
+        tax: Number(booking.tax),
+        totalPrice: Number(booking.totalPrice),
+        duration: Number(booking.duration),
+      }
+    });
+
+  } catch (error) {
+    console.error("Create booking error:", error);
+    return res.status(500).json({ error: "Failed to create booking" });
+  }
+};
 /**
  * Get available time slots for a listing
  * GET /api/bookings/availability/:listingId

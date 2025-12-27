@@ -165,14 +165,14 @@ export const getRecentBookings = async (limit = 10) => {
           id: true,
           name: true,
           email: true,
-          image: true
+          profilePhoto: true
         }
       },
       listing: {
         select: {
           id: true,
           title: true,
-          price: true
+          hourlyRate: true
         }
       }
     }
@@ -189,10 +189,10 @@ export const getRecentUsers = async (limit = 10) => {
       id: true,
       name: true,
       email: true,
-      image: true,
+      profilePhoto: true,
       role: true,
       createdAt: true,
-      isActive: true,
+      suspended: true,
       _count: {
         select: {
           bookings: true,
@@ -208,22 +208,19 @@ export const getRecentUsers = async (limit = 10) => {
 export const getSuspendedUsers = async () => {
   return prisma.user.findMany({
     where: {
-      OR: [
-        { isActive: false },
-        { deletedAt: { not: null } }
-      ]
+      suspended: true
     },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
       name: true,
       email: true,
-      image: true,
+      profilePhoto: true,
       role: true,
       createdAt: true,
-      deletedAt: true,
-      isActive: true,
-      suspensionReason: true
+      updatedAt: true,
+      suspended: true,
+      suspendedReason: true
     }
   });
 };
@@ -234,9 +231,8 @@ export const restoreUser = async (userId, adminId) => {
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
-      isActive: true,
-      deletedAt: null,
-      suspensionReason: null
+      suspended: false,
+      suspendedReason: null
     }
   });
 
@@ -272,7 +268,7 @@ export const getListings = async ({ limit = 10, status, page = 1 }) => {
             id: true,
             name: true,
             email: true,
-            image: true
+            profilePhoto: true
           }
         },
         _count: {
@@ -355,16 +351,13 @@ export const moderateListing = async ({ adminId, listingId, status, reason }) =>
   ]);
 };
 
-/* ================= PENDING REVIEWS ================= */
+/* =================  REVIEWS ================= */
 
-export const getPendingReviews = async (limit = 10) => {
+export const getReviews = async (status = "all", limit = 100) => {
+  const where = status && status !== "all" ? { status } : {};
+  
   return prisma.review.findMany({
-    where: {
-      OR: [
-        { status: "PENDING" },
-        { flagged: true }
-      ]
-    },
+    where,
     take: limit,
     orderBy: { createdAt: "desc" },
     include: {
@@ -373,7 +366,7 @@ export const getPendingReviews = async (limit = 10) => {
           id: true,
           name: true,
           email: true,
-          image: true
+          profilePhoto: true
         }
       },
       listing: {
@@ -397,9 +390,7 @@ export const updateReviewStatus = async ({ reviewId, adminId, status, reason }) 
   const review = await prisma.review.update({
     where: { id: reviewId },
     data: {
-      status,
-      flagged: false,
-      moderationReason: status === "REJECTED" ? reason : null
+      status
     }
   });
 
@@ -454,7 +445,7 @@ export const getAuditLogs = async ({ limit = 50, page = 1, action, entityType })
           id: true,
           name: true,
           email: true,
-          image: true
+          profilePhoto: true
         }
       }
     }
@@ -627,7 +618,7 @@ export const exportData = async ({ type, range, adminId }) => {
           email: true,
           role: true,
           createdAt: true,
-          isActive: true
+          suspended: true
         }
       });
       break;
@@ -667,7 +658,7 @@ export const exportData = async ({ type, range, adminId }) => {
       adminId,
       action: "DATA_EXPORT",
       entity: type.toUpperCase(),
-      entityId: "BULK",
+      entityId: null,
       after: { type, range, recordCount: data.length }
     }
   });

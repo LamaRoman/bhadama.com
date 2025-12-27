@@ -130,15 +130,13 @@ export const moderateListing = async (req, res) => {
   }
 };
 
-/* ===== PENDING REVIEWS ===== */
-
-export const getPendingReviews = async (req, res) => {
+export const getReviews = async (req, res) => {
   try {
-    const { limit = 10 } = req.query;
-    const reviews = await adminService.getPendingReviews(parseInt(limit));
+    const { status = "all", limit = 100 } = req.query;
+    const reviews = await adminService.getReviews(status, parseInt(limit));
     res.json(reviews);
   } catch (err) {
-    console.error("Error in getPendingReviews:", err);
+    console.error("Error in getReviews:", err);
     res.status(500).json({ message: err.message });
   }
 };

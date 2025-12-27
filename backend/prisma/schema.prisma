@@ -62,6 +62,7 @@ model User {
   email            String    @unique
   password         String
   role             Role      @default(USER)
+  adminRole        AdminRole?
   profilePhoto     String?
   lastNameChange   DateTime?
   phone            String?
@@ -98,6 +99,11 @@ model User {
 
   @@index([email])
   @@index([role])
+
+  googleId       String?   @unique
+  emailVerified  Boolean   @default(false)
+
+  lastLoginAt   DateTime?
 }
 
 model AdminProfile {
@@ -155,6 +161,25 @@ model Listing {
   @@index([hostId])
   @@index([status])
   @@index([featured])
+
+
+  // Featured listing (Admin controlled)
+  isFeatured        Boolean   @default(false)
+  featuredUntil     DateTime?
+  featuredPriority  Int       @default(0)    // Higher = shows first
+  
+  // Discount (Host can set, Admin can override)
+  discountPercent   Int       @default(0)
+  discountUntil     DateTime?
+  discountReason    String?                  // "Holiday Sale", "New Listing", etc.
+  
+  // Promoted listing (Host pays to promote - future monetization)
+  isPromoted        Boolean   @default(false)
+  promotedUntil     DateTime?
+  
+  // Analytics (for trending/popular sections)
+  viewCount         Int       @default(0)
+  bookingCount      Int       @default(0)
 }
 
 model Image {

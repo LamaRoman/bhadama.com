@@ -81,10 +81,11 @@ router.post(
 // REVIEWS
 // ============================================
 router.get(
-  "/reviews/pending",
+  "/reviews",
   authorize({ minRole: "ADMIN", adminRoles: ["MODERATOR"] }),
-  adminController.getPendingReviews
+  adminController.getReviews
 );
+
 
 router.put(
   "/reviews/:id/status",
