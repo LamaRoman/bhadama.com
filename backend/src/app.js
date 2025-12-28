@@ -7,7 +7,7 @@ import passport from "./config/passport.js";
 // Import routes
 import authRoutes from "./routes/authRoutes.js";
 import hostDashboardRoutes from "./routes/hostDashboardRoutes.js";
-import hostListingRoutes from "./routes/hostListingRoutes.js";
+import hostListingRoutes from "./routes/hostListingRoutes.js";  // Now includes discount features
 import publicListingRoutes from "./routes/publicListingRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -16,7 +16,6 @@ import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import hostReviewRoutes from './routes/hostReviewRoutes.js';
 import discoveryRoutes from "./routes/discoveryRoutes.js";
-
 import { completeExpiredBookings } from "./controllers/bookingController.js";
 
 const app = express();
@@ -44,7 +43,7 @@ app.use((req, res, next) => {
 // ============ ROUTES (Register each ONCE) ============
 
 app.use("/api/auth", authRoutes);
-app.use("/api/host/listings", hostListingRoutes);
+app.use("/api/host/listings", hostListingRoutes);  // Includes discount, pricing, blocked dates, etc.
 app.use("/api/host/dashboard", hostDashboardRoutes);
 app.use("/api/host/reviews", hostReviewRoutes);
 app.use("/api/publicListings", publicListingRoutes);

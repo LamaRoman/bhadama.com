@@ -211,6 +211,10 @@ export async function unblockDate(req, res) {
  * ✅ FIXED Calendar Availability (TIMEZONE BUG FIXED)
  * GET /api/availability/:listingId/calendar
  */
+/**
+ * ✅ FIXED Calendar Availability (WITH SPECIAL PRICING)
+ * GET /api/availability/:listingId/calendar
+ */
 export async function getCalendarAvailability(req, res) {
   try {
     const listingId = parseInt(req.params.listingId);
@@ -223,16 +227,14 @@ export async function getCalendarAvailability(req, res) {
     const startDate = new Date(year, month - 1, 1);
     startDate.setHours(0, 0, 0, 0);
 
-    // ✅ Use local date for proper comparison
     const endDate = new Date(year, month - 1, lastDay);
     endDate.setHours(23, 59, 59, 999);
 
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
-      select: { operatingHours: true, minHours: true },
+      select: { operatingHours: true, minHours: true, hourlyRate: true },
     });
 
-    // ✅ FIX: Use local date string for comparisons
     const formatLocalDate = (date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -262,17 +264,25 @@ export async function getCalendarAvailability(req, res) {
       },
     });
 
+    // ✅ NEW: Get special pricing for this month
+    const specialPricing = await prisma.specialPricing.findMany({
+      where: {
+        listingId,
+        date: { gte: startDate, lte: endDate },
+      },
+    });
+
     const availability = {};
     const currentDate = new Date(startDate);
 
-    // ✅ Pre-process blocked dates for faster lookup
+    // ✅ Pre-process blocked dates
     const blockedDateMap = {};
     blockedDates.forEach(b => {
       const dateKey = formatLocalDate(b.date);
       blockedDateMap[dateKey] = true;
     });
 
-    // ✅ Pre-process bookings for faster lookup
+    // ✅ Pre-process bookings
     const bookingsByDate = {};
     bookings.forEach(b => {
       const dateKey = formatLocalDate(b.bookingDate);
@@ -285,9 +295,22 @@ export async function getCalendarAvailability(req, res) {
       });
     });
 
+    // ✅ NEW: Pre-process special pricing
+    const specialPricingByDate = {};
+    specialPricing.forEach(sp => {
+      const dateKey = formatLocalDate(sp.date);
+      specialPricingByDate[dateKey] = {
+        hourlyRate: sp.hourlyRate,
+        reason: sp.reason,
+      };
+    });
+
     // ✅ Process each day of the month
     while (currentDate.getMonth() === month - 1) {
       const dateStr = formatLocalDate(currentDate);
+      
+      // ✅ Get special pricing for this date (if any)
+      const dateSpecialPricing = specialPricingByDate[dateStr] || null;
       
       // ✅ Check if date is blocked
       if (blockedDateMap[dateStr]) {
@@ -295,6 +318,7 @@ export async function getCalendarAvailability(req, res) {
           status: "blocked",
           available: false,
           fullyBooked: true,
+          specialPricing: dateSpecialPricing,  // ✅ Include even for blocked dates
         };
       } else {
         const dayOfWeek = currentDate.getDay();
@@ -316,6 +340,7 @@ export async function getCalendarAvailability(req, res) {
             status: "closed",
             available: false,
             fullyBooked: true,
+            specialPricing: dateSpecialPricing,  // ✅ Include
           };
         } else {
           const dateBookings = bookingsByDate[dateStr] || [];
@@ -337,6 +362,9 @@ export async function getCalendarAvailability(req, res) {
                 listing?.minHours || 1
               ),
               bookedCount: 0,
+              specialPricing: dateSpecialPricing,  // ✅ Include
+              // ✅ Include effective rate for this date
+              effectiveRate: dateSpecialPricing?.hourlyRate || listing?.hourlyRate,
             };
           } else {
             const bookedRanges = dateBookings;
@@ -355,6 +383,9 @@ export async function getCalendarAvailability(req, res) {
               availableSlots,
               availableCount: availableSlots.length,
               bookedCount: bookedRanges.length,
+              specialPricing: dateSpecialPricing,  // ✅ Include
+              // ✅ Include effective rate for this date
+              effectiveRate: dateSpecialPricing?.hourlyRate || listing?.hourlyRate,
             };
           }
         }

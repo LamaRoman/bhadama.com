@@ -61,6 +61,49 @@ export async function getPublicListings(filters = {}) {
       orderBy = { createdAt: "desc" };
   }
 
+  // Common select object to ensure durationDiscounts is always included
+  const selectFields = {
+    id: true,
+    title: true,
+    description: true,
+    location: true,
+    hourlyRate: true,
+    discountPercent: true,
+    discountReason: true,
+    discountFrom: true,
+    discountUntil: true,
+    isFeatured: true,
+    featuredUntil: true,
+    capacity: true,
+    amenities: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true,
+    bookingCount: true,
+    viewCount: true,
+    // ✅ CRITICAL: Include these JSON fields
+    durationDiscounts: true,
+    bonusHoursOffer: true,
+    images: {
+      select: {
+        id: true,
+        url: true,
+        isCover: true,
+        order: true,
+      }
+    },
+    host: {
+      select: {
+        id: true,
+        name: true,
+        profilePhoto: true,
+      },
+    },
+    _count: {
+      select: { reviews: true, bookings: true }
+    }
+  };
+
   // If search query exists, do partial matching including amenities
   if (search) {
     const normalizedSearch = search.trim();
@@ -77,37 +120,13 @@ export async function getPublicListings(filters = {}) {
 
     const textMatches = await prisma.listing.findMany({
       where: textWhere,
-      include: {
-        images: true,
-        host: {
-          select: {
-            id: true,
-            name: true,
-            profilePhoto: true,
-          },
-        },
-        _count: {
-          select: { reviews: true, bookings: true }
-        }
-      },
+      select: selectFields,
     });
 
     // Get all listings for amenity partial matching
     const allListings = await prisma.listing.findMany({
       where,
-      include: {
-        images: true,
-        host: {
-          select: {
-            id: true,
-            name: true,
-            profilePhoto: true,
-          },
-        },
-        _count: {
-          select: { reviews: true, bookings: true }
-        }
-      },
+      select: selectFields,
     });
 
     // Filter for partial amenity matches
@@ -154,19 +173,7 @@ export async function getPublicListings(filters = {}) {
   const [listings, total] = await Promise.all([
     prisma.listing.findMany({
       where,
-      include: {
-        images: true,
-        host: {
-          select: {
-            id: true,
-            name: true,
-            profilePhoto: true,
-          },
-        },
-        _count: {
-          select: { reviews: true, bookings: true }
-        }
-      },
+      select: selectFields,
       orderBy,
       skip,
       take,
@@ -187,7 +194,7 @@ export async function getPublicListings(filters = {}) {
 }
 
 /**
- * Get a single public listing by ID
+ * Get a single public listing by ID with all pricing fields
  */
 export async function getPublicListingById(listingId) {
   return prisma.listing.findFirst({
@@ -195,8 +202,60 @@ export async function getPublicListingById(listingId) {
       id: listingId,
       status: "ACTIVE",
     },
-    include: {
-      images: true,
+    select: {
+      id: true,
+      hostId: true,
+      title: true,
+      slug: true,
+      description: true,
+      location: true,
+      address: true,
+      latitude: true,
+      longitude: true,
+      
+      // ✅ All Pricing Fields
+      hourlyRate: true,
+      durationDiscounts: true,  // ✅ ADDED
+      bonusHoursOffer: true,
+      
+      minHours: true,
+      maxHours: true,
+      includedGuests: true,
+      extraGuestCharge: true,
+      
+      // Booking Settings
+      autoConfirm: true,
+      minAdvanceBooking: true,
+      maxAdvanceBooking: true,
+      instantBooking: true,
+      
+      // Details
+      operatingHours: true,
+      amenities: true,
+      capacity: true,
+      minCapacity: true,
+      size: true,
+      rules: true,
+      
+      // Status
+      status: true,
+      featured: true,
+      isFeatured: true,
+      
+      // Discount (general listing discount)
+      discountPercent: true,
+      discountFrom: true,
+      discountUntil: true,
+      discountReason: true,
+      
+      // Timestamps
+      createdAt: true,
+      updatedAt: true,
+      
+      // Relations
+      images: {
+        orderBy: { isCover: 'desc' }
+      },
       host: {
         select: {
           id: true,
@@ -214,7 +273,18 @@ export async function getPublicListingById(listingId) {
 export async function getFeaturedListings(limit = 6) {
   return prisma.listing.findMany({
     where: { status: "ACTIVE" },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      hourlyRate: true,
+      discountPercent: true,
+      isFeatured: true,
+      capacity: true,
+      amenities: true,
+      createdAt: true,
+      durationDiscounts: true,  // ✅ ADDED
+      bonusHoursOffer: true,     // ✅ ADDED
       images: {
         where: { isCover: true },
         take: 1,
@@ -249,7 +319,18 @@ export async function getListingsByLocation(location, limit = 20) {
         mode: "insensitive",
       },
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      hourlyRate: true,
+      discountPercent: true,
+      isFeatured: true,
+      capacity: true,
+      amenities: true,
+      createdAt: true,
+      durationDiscounts: true,  // ✅ ADDED
+      bonusHoursOffer: true,     // ✅ ADDED
       images: true,
       host: {
         select: {
@@ -274,8 +355,32 @@ export async function searchListings(query, options = {}) {
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const take = parseInt(limit);
 
-  // First, get all active listings that match text fields
-  // Then filter for amenities in application code (for partial matching)
+  const selectFields = {
+    id: true,
+    title: true,
+    description: true,
+    location: true,
+    hourlyRate: true,
+    discountPercent: true,
+    isFeatured: true,
+    capacity: true,
+    amenities: true,
+    createdAt: true,
+    durationDiscounts: true,  // ✅ ADDED
+    bonusHoursOffer: true,     // ✅ ADDED
+    images: true,
+    host: {
+      select: {
+        id: true,
+        name: true,
+        profilePhoto: true,
+      },
+    },
+    _count: {
+      select: { reviews: true, bookings: true }
+    }
+  };
+
   const textMatchWhere = {
     status: "ACTIVE",
     OR: [
@@ -288,38 +393,13 @@ export async function searchListings(query, options = {}) {
   // Get text matches
   const textMatches = await prisma.listing.findMany({
     where: textMatchWhere,
-    include: {
-      images: true,
-      host: {
-        select: {
-          id: true,
-          name: true,
-          profilePhoto: true,
-        },
-      },
-      _count: {
-        select: { reviews: true, bookings: true }
-      }
-    },
+    select: selectFields,
   });
 
   // Get amenity matches (partial matching)
-  // Find listings where ANY amenity CONTAINS the search query
   const allActiveListings = await prisma.listing.findMany({
     where: { status: "ACTIVE" },
-    include: {
-      images: true,
-      host: {
-        select: {
-          id: true,
-          name: true,
-          profilePhoto: true,
-        },
-      },
-      _count: {
-        select: { reviews: true, bookings: true }
-      }
-    },
+    select: selectFields,
   });
 
   // Filter for partial amenity matches
@@ -373,9 +453,4 @@ export async function getAllAmenities() {
   });
 
   return Array.from(amenitySet).sort();
-}
-
-// Helper function
-function capitalizeFirst(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }

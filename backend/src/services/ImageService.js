@@ -3,10 +3,10 @@ import { prisma } from "../config/prisma.js";
 /**
  * Add images to a listing
  * @param {number} listingId - The listing ID
- * @param {string[]} imageUrls - Array of image URLs
+ * @param {Array} uploadResults - Array of S3 upload results { secure_url, key }
  * @returns {Promise<Array>} - Array of created image records
  */
-export async function addImages(listingId, imageUrls) {
+export async function addImages(listingId, uploadResults) {
   // Check if listing already has a cover image
   const existingImages = await prisma.image.findMany({
     where: { listingId },
@@ -14,10 +14,11 @@ export async function addImages(listingId, imageUrls) {
 
   const hasCover = existingImages.some((img) => img.isCover);
 
-  const imageData = imageUrls.map((url, index) => ({
+  const imageData = uploadResults.map((result, index) => ({
     listingId,
-    url,
-    isCover: !hasCover && index === 0, // First image is cover if no cover exists
+    url: result.secure_url,   // ✅ Use secure_url from S3 result
+    s3Key: result.key,        // ✅ Use key from S3 result
+    isCover: !hasCover && index === 0,
   }));
 
   await prisma.image.createMany({

@@ -1,4 +1,4 @@
-import * as listingImageService from "../services/listingImageService.js";
+import * as listingImageService from "../services/ImageService.js";
 import { uploadToS3 } from "../config/s3.js"; // Adjust based on your setup
 
 /**
@@ -19,18 +19,15 @@ export async function uploadImages(req, res) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    // Upload files to cloud storage (Cloudinary, S3, etc.)
+    // Upload files to S3
     const uploadPromises = files.map((file) =>
-      uploadToS3(file.buffer, {
-        folder: `listings/${listingId}`,
-      })
+      uploadToS3(file, null, listingId)  // Pass file object, not file.buffer
     );
 
     const uploadResults = await Promise.all(uploadPromises);
-    const imageUrls = uploadResults.map((result) => result.secure_url);
-
-    // Save to database
-    const images = await listingImageService.addImages(listingId, imageUrls);
+    
+    // Pass full results (with both url and key) to service
+    const images = await listingImageService.addImages(listingId, uploadResults);
 
     res.json({
       message: "Images uploaded successfully",

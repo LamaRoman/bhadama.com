@@ -70,12 +70,18 @@ model User {
   isVerified       Boolean   @default(false)
   stripeCustomerId String?
 
+  // Google OAuth
+  googleId       String?   @unique
+  emailVerified  Boolean   @default(false)
+
   // Admin safety
   suspended        Boolean   @default(false)
   suspendedReason  String?
   riskScore        Int       @default(0)
   verifiedByAdmin  Boolean   @default(false)
 
+  // Activity tracking
+  lastLoginAt      DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -90,7 +96,7 @@ model User {
   helpfulReviews   Review[]  @relation("HelpfulReviews")
   images           Image[]   @relation("UserImages")
 
-  // Admin relations (FIXED)
+  // Admin relations
   adminProfile        AdminProfile?
   auditLogs           AuditLog[]           @relation("AdminAuditLogs")
   listingModerations  ListingModeration[]  @relation("AdminListingModerations")
@@ -99,11 +105,6 @@ model User {
 
   @@index([email])
   @@index([role])
-
-  googleId       String?   @unique
-  emailVerified  Boolean   @default(false)
-
-  lastLoginAt   DateTime?
 }
 
 model AdminProfile {
@@ -128,12 +129,24 @@ model Listing {
   latitude         Decimal?      @db.Decimal(10, 8)
   longitude        Decimal?      @db.Decimal(11, 8)
 
+  // Pricing
   hourlyRate       Decimal       @db.Decimal(10, 2)
+ 
   minHours         Int           @default(1)
   maxHours         Int           @default(12)
   includedGuests   Int           @default(10)
   extraGuestCharge Decimal?      @db.Decimal(10, 2)
 
+  durationDiscounts Json?         // Flexible tiered discounts
+  bonusHoursOffer       Json?     // { minHours: 4, bonusHours: 1 }
+
+  // Booking Settings (Host configurable)
+  autoConfirm        Boolean   @default(false)     // Auto-confirm bookings without host approval
+  minAdvanceBooking  Int       @default(24)        // Minimum hours before booking (default: 24 hours)
+  maxAdvanceBooking  Int       @default(90)        // Maximum days in advance (default: 90 days / 3 months)
+  instantBooking     Boolean   @default(true)      // Allow instant booking vs request-to-book
+
+  // Details
   operatingHours   Json?
   amenities        String[]
   capacity         Int
@@ -141,13 +154,35 @@ model Listing {
   size             String?
   rules            String[]
 
+  // Status & Visibility
   status           ListingStatus @default(ACTIVE)
   featured         Boolean       @default(false)
   views            Int           @default(0)
 
+  // Featured listing (Admin controlled)
+  isFeatured        Boolean   @default(false)
+  featuredUntil     DateTime?
+  featuredPriority  Int       @default(0)
+
+  // Discount (Host can set, Admin can override)
+  discountPercent   Int       @default(0)
+  discountFrom      DateTime?                  // When discount starts
+  discountUntil     DateTime?                  // When discount ends
+  discountReason    String?                    // "Holiday Sale", "New Listing", etc.
+
+  // Promoted listing (Future monetization)
+  isPromoted        Boolean   @default(false)
+  promotedUntil     DateTime?
+
+  // Analytics
+  viewCount         Int       @default(0)
+  bookingCount      Int       @default(0)
+
+  // Timestamps
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  // Relations
   host             User          @relation(fields: [hostId], references: [id], onDelete: Cascade)
   images           Image[]       @relation("ListingImages")
   bookings         Booking[]
@@ -157,29 +192,50 @@ model Listing {
   messages         Message[]
   analytics        Analytics[]
   moderations      ListingModeration[]
+  specialPricing   SpecialPricing[]
+  promotionRequests PromotionRequest[]
 
   @@index([hostId])
   @@index([status])
   @@index([featured])
+  @@index([isFeatured])
+  @@index([discountPercent])
+}
 
+// Special pricing for specific dates (holidays, weekends, etc.)
+model SpecialPricing {
+  id          Int       @id @default(autoincrement())
+  listingId   Int
+  date        DateTime  @db.Date
+  hourlyRate  Decimal   @db.Decimal(10, 2)
+  reason      String?   // e.g., "Holiday", "Peak Season", "Weekend"
+  createdAt   DateTime  @default(now())
 
-  // Featured listing (Admin controlled)
-  isFeatured        Boolean   @default(false)
-  featuredUntil     DateTime?
-  featuredPriority  Int       @default(0)    // Higher = shows first
-  
-  // Discount (Host can set, Admin can override)
-  discountPercent   Int       @default(0)
-  discountUntil     DateTime?
-  discountReason    String?                  // "Holiday Sale", "New Listing", etc.
-  
-  // Promoted listing (Host pays to promote - future monetization)
-  isPromoted        Boolean   @default(false)
-  promotedUntil     DateTime?
-  
-  // Analytics (for trending/popular sections)
-  viewCount         Int       @default(0)
-  bookingCount      Int       @default(0)
+  listing     Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, date])
+  @@index([listingId])
+  @@index([date])
+}
+
+// Promotion requests from hosts
+model PromotionRequest {
+  id          Int       @id @default(autoincrement())
+  listingId   Int
+  hostId      Int
+  duration    Int       @default(7)   // Requested days of promotion
+  message     String?                  // Why they should be featured
+  status      String    @default("PENDING")  // PENDING, APPROVED, REJECTED
+  adminId     Int?                     // Admin who reviewed
+  adminNote   String?                  // Admin response/reason
+  reviewedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  listing     Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([hostId])
+  @@index([status])
 }
 
 model Image {
@@ -212,10 +268,12 @@ model Booking {
   duration         Decimal       @db.Decimal(5,2)
   guests           Int           @default(1)
 
+  // Pricing breakdown
   basePrice        Decimal       @db.Decimal(10,2)
   extraGuestPrice  Decimal       @db.Decimal(10,2) @default(0)
   serviceFee       Decimal       @db.Decimal(10,2) @default(0)
   tax              Decimal       @db.Decimal(10,2) @default(0)
+  discountAmount   Decimal       @db.Decimal(10,2) @default(0)  // Track discount applied
   totalPrice       Decimal       @db.Decimal(10,2)
 
   status           BookingStatus @default(PENDING)
@@ -240,9 +298,9 @@ model Booking {
 
   @@index([userId])
   @@index([listingId])
+  @@index([status])
+  @@index([bookingDate])
 }
-
-// REPLACE your Review model in schema.prisma with this:
 
 model Review {
   id          Int       @id @default(autoincrement())
@@ -254,18 +312,19 @@ model Review {
   title       String?
   comment     String
 
-  cleanliness Decimal?  @db.Decimal(2,1)
-  accuracy    Decimal?  @db.Decimal(2,1)
-  communication Decimal? @db.Decimal(2,1)
-  location    Decimal?  @db.Decimal(2,1)
-  checkin     Decimal?  @db.Decimal(2,1)
-  value       Decimal?  @db.Decimal(2,1)
+  // Detailed ratings
+  cleanliness   Decimal?  @db.Decimal(2,1)
+  accuracy      Decimal?  @db.Decimal(2,1)
+  communication Decimal?  @db.Decimal(2,1)
+  location      Decimal?  @db.Decimal(2,1)
+  checkin       Decimal?  @db.Decimal(2,1)
+  value         Decimal?  @db.Decimal(2,1)
 
-  status      ReviewStatus @default(APPROVED)
-  helpfulCount Int         @default(0)
-  reported     Boolean     @default(false)
+  status       ReviewStatus @default(APPROVED)
+  helpfulCount Int          @default(0)
+  reported     Boolean      @default(false)
 
-  // ADD THESE TWO FIELDS FOR HOST RESPONSES:
+  // Host response
   hostResponse  String?
   respondedAt   DateTime?
 
@@ -279,8 +338,8 @@ model Review {
   reports     ReviewReport[]
 
   @@index([listingId])
+  @@index([rating])
 }
-
 
 //////////////////// ADMIN MODELS ////////////////////
 
@@ -298,6 +357,7 @@ model AuditLog {
   admin     User     @relation("AdminAuditLogs", fields: [adminId], references: [id])
 
   @@index([adminId])
+  @@index([createdAt])
 }
 
 model ListingModeration {
@@ -353,6 +413,8 @@ model AbuseReport {
   resolved   Boolean  @default(false)
   adminId    Int?
   createdAt  DateTime @default(now())
+
+  @@index([resolved])
 }
 
 model PlatformMetric {
@@ -361,6 +423,7 @@ model PlatformMetric {
   metric    String
   value     Decimal
 
+  @@unique([date, metric])
   @@index([date])
 }
 
@@ -374,13 +437,14 @@ model FeatureFlag {
 model BlockedDate {
   id        Int      @id @default(autoincrement())
   listingId Int
-  date      DateTime
+  date      DateTime @db.Date
   reason    String?
   createdAt DateTime @default(now())
 
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, date])
+  @@index([listingId])
 }
 
 model SavedListing {
@@ -390,9 +454,10 @@ model SavedListing {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@unique([userId, listingId])
+  @@index([userId])
 }
 
 model Notification {
@@ -408,6 +473,7 @@ model Notification {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([read])
 }
 
 model Message {
@@ -422,6 +488,10 @@ model Message {
   sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
   listing    Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([read])
 }
 
 model Analytics {
@@ -434,4 +504,5 @@ model Analytics {
   listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([date])
+  @@index([listingId])
 }

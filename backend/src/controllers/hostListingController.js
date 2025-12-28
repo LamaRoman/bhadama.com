@@ -393,3 +393,70 @@ export const setCoverImage = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Update listing duration discounts and bonus hours
+ * PUT /api/host/listings/:id/discounts
+ */
+export const updateDiscounts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostId = req.user.id;
+    const { durationDiscounts, bonusHoursOffer } = req.body;
+
+    // Verify ownership
+    const listing = await prisma.listing.findFirst({
+      where: { id: parseInt(id), hostId },
+    });
+
+    if (!listing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Validate tiers
+    if (durationDiscounts?.tiers) {
+      for (const tier of durationDiscounts.tiers) {
+        if (!tier.minHours || tier.minHours < 1) {
+          return res.status(400).json({ error: "Each tier must have minHours >= 1" });
+        }
+        if (!tier.discountPercent || tier.discountPercent < 1 || tier.discountPercent > 50) {
+          return res.status(400).json({ error: "Discount must be 1-50%" });
+        }
+      }
+      
+      // Check for duplicates
+      const hours = durationDiscounts.tiers.map(t => t.minHours);
+      if (new Set(hours).size !== hours.length) {
+        return res.status(400).json({ error: "Duplicate minHours not allowed" });
+      }
+    }
+
+    // Validate bonus
+    if (bonusHoursOffer) {
+      if (!bonusHoursOffer.minHours || bonusHoursOffer.minHours < 1) {
+        return res.status(400).json({ error: "Bonus minHours must be >= 1" });
+      }
+      if (!bonusHoursOffer.bonusHours || bonusHoursOffer.bonusHours < 1) {
+        return res.status(400).json({ error: "Bonus hours must be >= 1" });
+      }
+    }
+
+    const updated = await prisma.listing.update({
+      where: { id: parseInt(id) },
+      data: {
+        durationDiscounts: durationDiscounts || null,
+        bonusHoursOffer: bonusHoursOffer || null,
+      },
+      select: {
+        id: true,
+        durationDiscounts: true,
+        bonusHoursOffer: true,
+      },
+    });
+
+    res.json({ message: "Discounts updated", listing: updated });
+  } catch (error) {
+    console.error("Update discounts error:", error);
+    res.status(500).json({ error: "Failed to update discounts" });
+  }
+};
