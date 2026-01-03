@@ -219,7 +219,6 @@ export const removeSpecialPricing = async (req, res) => {
 
 // ============ BLOCKED DATES ============
 
-// Block dates
 export const blockDates = async (req, res) => {
   try {
     const { id } = req.params;

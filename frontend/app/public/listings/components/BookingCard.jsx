@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { toast } from "react-hot-toast";
 import Calendar from "./Calendar";
 import { formatDateDisplay, generateTimeSlots, getOperatingHoursForDate } from "./utils";
-
+import PaymentLogos from "./PaymentLogos";
 export default function BookingCard({
   listing,
   bookingData,
@@ -25,10 +25,53 @@ export default function BookingCard({
   guestsRef,
   isOwnListing = false,
 }) {
+  // ✅ Parse base rate and discounts
+  const baseRate = parseFloat(listing?.hourlyRate) || 0;
+  const flatDiscountPercent = parseFloat(listing?.discountPercent) || 0;
+  const discountReason = listing?.discountReason || null;
+  const bonusOffer = listing?.bonusHoursOffer || null;
+  const durationTiers = listing?.durationDiscounts?.tiers || [];
+
+  // ✅ Calculate discounted base rate (if flat discount exists)
+  const discountedBaseRate = useMemo(() => {
+    if (flatDiscountPercent > 0) {
+      return baseRate * (1 - flatDiscountPercent / 100);
+    }
+    return baseRate;
+  }, [baseRate, flatDiscountPercent]);
+
   const formatSelectedDate = () => {
     if (!bookingData.date) return "Select date";
     return formatDateDisplay(new Date(bookingData.date));
   };
+
+  // ✅ Get effective hourly rate for selected date (special pricing or discounted rate)
+  const effectiveRate = useMemo(() => {
+    if (!bookingData.date) return discountedBaseRate;
+    
+    const dayAvailability = availabilityData[bookingData.date];
+    if (dayAvailability?.specialPricing?.hourlyRate) {
+      return parseFloat(dayAvailability.specialPricing.hourlyRate);
+    }
+    return discountedBaseRate;
+  }, [bookingData.date, availabilityData, discountedBaseRate]);
+
+  // ✅ Check if selected date has special pricing AND it's a discount
+  const hasSpecialDiscount = useMemo(() => {
+    if (!bookingData.date) return false;
+    const specialPricing = availabilityData[bookingData.date]?.specialPricing;
+    return specialPricing && parseFloat(specialPricing.hourlyRate) < discountedBaseRate;
+  }, [bookingData.date, availabilityData, discountedBaseRate]);
+
+  const specialPricingReason = useMemo(() => {
+    if (!bookingData.date) return null;
+    return availabilityData[bookingData.date]?.specialPricing?.reason || null;
+  }, [bookingData.date, availabilityData]);
+
+  const savingsPerHour = useMemo(() => {
+    if (!hasSpecialDiscount) return 0;
+    return discountedBaseRate - effectiveRate;
+  }, [hasSpecialDiscount, discountedBaseRate, effectiveRate]);
 
   const startSlots = useMemo(() => {
     if (!bookingData.date || !listing?.operatingHours) return [];
@@ -77,12 +120,94 @@ export default function BookingCard({
     return ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
   };
 
-  const calculateTotal = () => {
-    const hours = calculateDuration();
-    const basePrice = hours * (listing?.hourlyRate || listing?.price || 0);
-    const guestSurcharge = Math.max(0, bookingData.guests - (listing?.includedGuests || 10)) * (listing?.extraGuestCharge || 0);
-    return basePrice + guestSurcharge;
-  };
+  const duration = calculateDuration();
+
+  // ✅ COMPREHENSIVE PRICING CALCULATION
+  const pricing = useMemo(() => {
+    if (duration === 0) {
+      return { 
+        total: 0, 
+        type: 'none',
+        baseAmount: 0,
+        flatDiscountAmount: 0,
+        durationDiscountAmount: 0,
+        durationDiscountPercent: 0,
+        discountTier: null,
+        bonusHours: 0,
+        guestSurcharge: 0,
+        extraGuests: 0,
+        totalHours: 0,
+      };
+    }
+
+    let result = {
+      total: 0,
+      type: 'hourly',
+      baseAmount: 0,
+      flatDiscountAmount: 0,
+      durationDiscountAmount: 0,
+      durationDiscountPercent: 0,
+      discountTier: null,
+      bonusHours: 0,
+      guestSurcharge: 0,
+      extraGuests: 0,
+      totalHours: duration,
+    };
+
+    // Calculate base price at full rate (before any discounts)
+    const fullBaseAmount = duration * baseRate;
+    result.baseAmount = fullBaseAmount;
+
+    // Apply flat discount first
+    if (flatDiscountPercent > 0) {
+      result.flatDiscountAmount = fullBaseAmount * (flatDiscountPercent / 100);
+      result.type = 'flat-discount';
+    }
+
+    // Amount after flat discount
+    const afterFlatDiscount = fullBaseAmount - result.flatDiscountAmount;
+
+    // Find applicable duration discount tier (applies to already-discounted price)
+    if (durationTiers.length > 0) {
+      const sorted = [...durationTiers].sort((a, b) => b.minHours - a.minHours);
+      const applicableTier = sorted.find(t => duration >= t.minHours);
+      
+      if (applicableTier) {
+        result.discountTier = applicableTier;
+        result.durationDiscountPercent = applicableTier.discountPercent;
+        result.durationDiscountAmount = afterFlatDiscount * (applicableTier.discountPercent / 100);
+        result.type = 'combined-discount';
+      }
+    }
+
+    // Calculate total after both discounts
+    result.total = afterFlatDiscount - result.durationDiscountAmount;
+
+    // Apply bonus hours (doesn't affect price, just adds value)
+    if (bonusOffer?.minHours && bonusOffer?.bonusHours && duration >= bonusOffer.minHours) {
+      result.bonusHours = bonusOffer.bonusHours;
+      result.totalHours = duration + bonusOffer.bonusHours;
+    }
+
+    // Add guest surcharge
+    const extraGuests = Math.max(0, bookingData.guests - (listing?.includedGuests || 10));
+    const guestSurcharge = extraGuests * parseFloat(listing?.extraGuestCharge || 0);
+    
+    result.total += guestSurcharge;
+    result.guestSurcharge = guestSurcharge;
+    result.extraGuests = extraGuests;
+
+    return result;
+  }, [
+    duration, 
+    baseRate,
+    flatDiscountPercent,
+    durationTiers,
+    bonusOffer, 
+    bookingData.guests, 
+    listing?.includedGuests, 
+    listing?.extraGuestCharge
+  ]);
 
   const quickSelectGuests = (count) => {
     setBookingData({ ...bookingData, guests: count });
@@ -93,13 +218,150 @@ export default function BookingCard({
     <div className="bg-white rounded-2xl shadow-2xl border border-stone-200">
       {/* Price Header */}
       <div className="p-6 border-b border-stone-200">
+        {/* Main Hourly Rate Display */}
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-4xl font-bold text-stone-900">
-            ${listing?.hourlyRate || listing?.price}
-          </span>
-          <span className="text-stone-600">/ hour</span>
+          {flatDiscountPercent > 0 ? (
+            <>
+              <span className="text-4xl font-bold text-red-600">
+                Rs.{discountedBaseRate.toFixed(0)}
+              </span>
+              <span className="text-xl text-stone-400 line-through">
+                Rs.{baseRate}
+              </span>
+              <span className="text-stone-600">/ hour</span>
+            </>
+          ) : hasSpecialDiscount ? (
+            <>
+              <span className="text-4xl font-bold text-purple-600">
+                Rs.{effectiveRate}
+              </span>
+              <span className="text-xl text-stone-400 line-through">
+                Rs.{baseRate}
+              </span>
+              <span className="text-stone-600">/ hour</span>
+            </>
+          ) : (
+            <>
+              <span className="text-4xl font-bold text-stone-900">
+                Rs.{baseRate}
+              </span>
+              <span className="text-stone-600">/ hour</span>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-stone-600">
+        
+        {/* Flat Discount Badge */}
+        {flatDiscountPercent > 0 && (
+          <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200">
+            <span className="text-red-500">🔥</span>
+            <span className="text-sm font-medium text-red-700">
+              {discountReason || `${flatDiscountPercent}% OFF`}
+            </span>
+            <span className="ml-auto text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+              Save Rs.{(baseRate - discountedBaseRate).toFixed(0)}/hr
+            </span>
+          </div>
+        )}
+
+        {/* Special Discount Badge - Only when lower */}
+        {hasSpecialDiscount && (
+          <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-purple-50 rounded-lg border border-purple-200">
+            <span className="text-purple-500">★</span>
+            <span className="text-sm font-medium text-purple-700">
+              {specialPricingReason || "Special Rate"}
+            </span>
+            <span className="ml-auto text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+              Save Rs.{savingsPerHour}/hr
+            </span>
+          </div>
+        )}
+
+        {/* ✅ Duration Discount Tiers Display */}
+        {(durationTiers.length > 0 || bonusOffer) && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              Special Offers
+            </p>
+            
+            <div className="grid grid-cols-1 gap-2">
+              {/* Duration Discount Tiers */}
+              {durationTiers.map((tier, index) => {
+                const isActive = pricing.discountTier?.minHours === tier.minHours;
+                return (
+                  <div 
+                    key={index}
+                    className={`relative flex items-center justify-between p-3 rounded-xl border transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-violet-100 to-purple-100 border-violet-400 ring-2 ring-violet-400' 
+                        : 'bg-gradient-to-r from-violet-50 to-purple-50 border-violet-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                        <span className="text-lg">🎯</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-stone-800">
+                          {tier.label || `${tier.minHours}+ Hours`}
+                        </p>
+                        <p className="text-xs text-stone-500">Book {tier.minHours}+ hours</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-violet-700">{tier.discountPercent}% OFF</p>
+                      {duration >= tier.minHours && (
+                        <p className="text-xs text-green-600">
+                          Save Rs.{pricing.durationDiscountAmount.toFixed(0)}
+                        </p>
+                      )}
+                    </div>
+                    {isActive && (
+                      <div className="absolute -top-2 -right-2 bg-violet-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                        APPLIED
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Bonus Hours Offer */}
+              {bonusOffer?.minHours && bonusOffer?.bonusHours && (
+                <div className={`relative flex items-center justify-between p-3 rounded-xl border transition-all ${
+                  pricing.bonusHours > 0 
+                    ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-400 ring-2 ring-green-400' 
+                    : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <span className="text-lg">🎁</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-stone-800">Bonus Hours</p>
+                      <p className="text-xs text-stone-500">
+                        Book {bonusOffer.minHours}+ hrs
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-700">
+                      +{bonusOffer.bonusHours} hr FREE
+                    </p>
+                    <p className="text-xs text-green-600">
+                      Rs.{(bonusOffer.bonusHours * baseRate).toFixed(0)} value
+                    </p>
+                  </div>
+                  {pricing.bonusHours > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                      APPLIED
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex items-center gap-2 text-sm text-stone-600 mt-3">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -121,14 +383,25 @@ export default function BookingCard({
             }}
             className={`w-full p-4 rounded-xl text-left font-medium transition-all border ${
               bookingData.date
-                ? "border-emerald-500 bg-emerald-50"
+                ? hasSpecialDiscount
+                  ? "border-purple-500 bg-purple-50"
+                  : flatDiscountPercent > 0
+                  ? "border-red-500 bg-red-50"
+                  : "border-emerald-500 bg-emerald-50"
                 : "border-stone-200 hover:border-emerald-400 bg-white"
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={bookingData.date ? "text-emerald-700" : "text-stone-600"}>
-                {formatSelectedDate()}
-              </span>
+              <div>
+                <span className={bookingData.date ? (hasSpecialDiscount ? "text-purple-700" : flatDiscountPercent > 0 ? "text-red-700" : "text-emerald-700") : "text-stone-600"}>
+                  {formatSelectedDate()}
+                </span>
+                {bookingData.date && (
+                  <span className={`ml-2 text-sm ${hasSpecialDiscount ? "text-purple-600 font-semibold" : flatDiscountPercent > 0 ? "text-red-600 font-semibold" : "text-stone-500"}`}>
+                    (Rs.{effectiveRate}/hr)
+                  </span>
+                )}
+              </div>
               <svg className="w-5 h-5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -144,6 +417,7 @@ export default function BookingCard({
               setBookingData={setBookingData}
               setShowCalendar={setShowCalendar}
               setShowTimeSlots={setShowTimeSlots}
+              baseHourlyRate={baseRate}
             />
           )}
         </div>
@@ -274,7 +548,7 @@ export default function BookingCard({
                     guests: Math.max(listing?.minCapacity || 1, prev.guests - 1),
                   }))}
                   disabled={bookingData.guests <= (listing?.minCapacity || 1)}
-                  className="w-10 h-10 rounded-full bg-white border border-stone-300 disabled:opacity-50"
+                  className="w-10 h-10 rounded-full bg-white border border-stone-300 disabled:opacity-50 flex items-center justify-center text-lg"
                 >
                   −
                 </button>
@@ -288,7 +562,7 @@ export default function BookingCard({
                     guests: Math.min(listing?.capacity || 100, prev.guests + 1),
                   }))}
                   disabled={bookingData.guests >= (listing?.capacity || 100)}
-                  className="w-10 h-10 rounded-full bg-white border border-stone-300 disabled:opacity-50"
+                  className="w-10 h-10 rounded-full bg-white border border-stone-300 disabled:opacity-50 flex items-center justify-center text-lg"
                 >
                   +
                 </button>
@@ -303,30 +577,96 @@ export default function BookingCard({
           )}
         </div>
 
-        {/* Price Breakdown */}
-        {calculateDuration() > 0 && (
+        {/* ✅ COMPLETE Price Breakdown */}
+        {duration > 0 && (
           <div className="pt-4 border-t border-stone-200 space-y-3">
+            {/* Base hourly calculation */}
             <div className="flex justify-between text-sm">
               <span className="text-stone-600">
-                ${listing?.hourlyRate || listing?.price} × {calculateDuration()} hours
+                Rs.{baseRate} × {duration} hour{duration !== 1 ? 's' : ''}
               </span>
-              <span className="font-medium">
-                ${(listing?.hourlyRate || listing?.price) * calculateDuration()}
-              </span>
+              <span className="font-medium">Rs.{pricing.baseAmount.toFixed(0)}</span>
             </div>
 
-            {listing?.extraGuestCharge && bookingData.guests > (listing?.includedGuests || 10) && (
-              <div className="flex justify-between text-sm">
-                <span className="text-stone-600">Extra guests</span>
-                <span className="font-medium">
-                  ${(bookingData.guests - (listing?.includedGuests || 10)) * listing.extraGuestCharge}
+            {/* Flat Discount - Show if applied */}
+            {pricing.flatDiscountAmount > 0 && (
+              <div className="flex justify-between text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {discountReason || 'Discount'} ({flatDiscountPercent}% off)
+                </span>
+                <span className="font-medium">-Rs.{pricing.flatDiscountAmount.toFixed(0)}</span>
+              </div>
+            )}
+
+            {/* Duration Discount - Show if applied */}
+            {pricing.durationDiscountAmount > 0 && (
+              <div className="flex justify-between text-sm text-violet-600 bg-violet-50 px-3 py-2 rounded-lg border border-violet-200">
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {pricing.discountTier?.label || 'Duration discount'} ({pricing.durationDiscountPercent}% off)
+                </span>
+                <span className="font-medium">-Rs.{pricing.durationDiscountAmount.toFixed(0)}</span>
+              </div>
+            )}
+
+            {/* Special Date Savings */}
+            {hasSpecialDiscount && (
+              <div className="flex justify-between text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                <span className="flex items-center gap-1">
+                  <span>★</span>
+                  Special date savings
+                </span>
+                <span className="font-medium">-Rs.{(savingsPerHour * duration).toFixed(0)}</span>
+              </div>
+            )}
+
+            {/* Bonus Hours */}
+            {pricing.bonusHours > 0 && (
+              <div className="flex justify-between items-center text-sm bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                <span className="flex items-center gap-2 text-green-700">
+                  <span>🎁</span>
+                  <span className="font-medium">
+                    +{pricing.bonusHours} Bonus Hour{pricing.bonusHours > 1 ? 's' : ''} FREE
+                  </span>
+                </span>
+                <span className="text-green-600 text-xs">
+                  Rs.{(pricing.bonusHours * baseRate).toFixed(0)} value
                 </span>
               </div>
             )}
 
+            {/* Extra Guests */}
+            {pricing.guestSurcharge > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-stone-600">
+                  Extra guests ({pricing.extraGuests})
+                </span>
+                <span className="font-medium">+Rs.{pricing.guestSurcharge.toFixed(0)}</span>
+              </div>
+            )}
+
+            {/* Total */}
             <div className="flex justify-between text-lg font-bold pt-3 border-t border-stone-200">
               <span>Total</span>
-              <span className="text-emerald-600">${calculateTotal()}</span>
+              <div className="text-right">
+                <span className={
+                  pricing.type === 'combined-discount' ? "text-violet-600" :
+                  pricing.type === 'flat-discount' ? "text-red-600" :
+                  hasSpecialDiscount ? "text-purple-600" : "text-emerald-600"
+                }>
+                  Rs.{pricing.total.toFixed(0)}
+                </span>
+                {pricing.bonusHours > 0 && (
+                  <p className="text-xs font-normal text-green-600">
+                    {pricing.totalHours} hours total (incl. {pricing.bonusHours} bonus)
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -344,7 +684,13 @@ export default function BookingCard({
             className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
               !bookingData.date || !bookingData.startTime || !bookingData.endTime || isBooking
                 ? "bg-stone-200 text-stone-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                : pricing.type === 'combined-discount'
+                  ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  : pricing.type === 'flat-discount'
+                    ? "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                    : hasSpecialDiscount
+                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                      : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
             }`}
           >
             {isBooking ? (
@@ -358,16 +704,16 @@ export default function BookingCard({
           </button>
         )}
 
-        {/* Security Message */}
+        {/* Security */}
         <div className="text-center pt-4">
-          <div className="flex items-center justify-center gap-2 text-sm text-stone-500 mb-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <span>Secure payment</span>
+          <div className="flex items-center justify-center gap-2 text-sm text-stone-500">
+            
+            <PaymentLogos />
           </div>
         </div>
       </div>
+      {/* Accepted Payment Methods */}
+
     </div>
   );
 }

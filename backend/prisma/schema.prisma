@@ -7,7 +7,61 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//////////////////// ENUMS ////////////////////
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum TierType {
+  FREE
+  BASIC
+  PRO
+  PREMIUM
+}
+
+enum BillingCycle {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  EXPIRED
+  CANCELLED
+  PAST_DUE
+  PAUSED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentGatewayType {
+  ESEWA
+  KHALTI
+  DODO
+  MANUAL
+  PENDING
+}
+
+enum Currency {
+  NPR
+  USD
+  INR
+}
+
+enum PaymentType {
+  FULL
+  PRORATED
+  RENEWAL
+  MANUAL
+  REFUND
+}
 
 enum Role {
   USER
@@ -28,6 +82,8 @@ enum ListingStatus {
   INACTIVE
   PENDING
   SOLD_OUT
+  OVER_LIMIT
+  ARCHIVED
 }
 
 enum BookingStatus {
@@ -52,9 +108,279 @@ enum NotificationType {
   NEW_REVIEW
   MESSAGE
   SYSTEM
+  BLOG_APPROVED
+  BLOG_REJECTED
+  BLOG_COMMENT
+  BLOG_LIKE
 }
 
-//////////////////// MODELS ////////////////////
+enum BlogStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum BlogCategory {
+  SPACE_TOUR
+  HOSTING_TIPS
+  LOCAL_GUIDE
+  ANNOUNCEMENT
+  EVENT_EXPERIENCE
+  PLANNING_TIPS
+  VENUE_REVIEW
+  INSPIRATION
+  GENERAL
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+  FLAGGED
+  DELETED
+}
+
+// ==========================================
+// HOST TIER SYSTEM
+// ==========================================
+
+model HostTier {
+  id          Int       @id @default(autoincrement())
+  name        TierType  @unique
+  displayName String
+  description String?
+  
+  // Limits
+  maxListings         Int       @default(2)
+  maxPhotosPerListing Int       @default(5)
+  maxBlogPostsPerMonth Int      @default(2)
+  featuredListingSlots Int      @default(0)
+  
+  // Commission
+  commissionPercent   Float     @default(10.0)
+  
+  // Features
+  features            Json?
+  
+  // Trial
+  trialDays           Int       @default(0)
+  
+  // Status
+  isActive            Boolean   @default(true)
+  sortOrder           Int       @default(0)
+  
+  // Timestamps
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Relations
+  pricing                 TierPricing[]
+  subscriptions           HostSubscription[]  @relation("CurrentTier")
+  previousSubscriptions   HostSubscription[]  @relation("PreviousTier")
+  pendingSubscriptions    HostSubscription[]  @relation("PendingTier")
+  
+  @@map("host_tiers")
+}
+
+model TierPricing {
+  id            Int          @id @default(autoincrement())
+  tierId        Int
+  tier          HostTier     @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  
+  billingCycle  BillingCycle
+  currency      Currency     @default(NPR)
+  
+  price         Float
+  discountPercent Float      @default(0)
+  finalPrice    Float
+  
+  isActive      Boolean      @default(true)
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  @@unique([tierId, billingCycle, currency])
+  @@map("tier_pricing")
+}
+
+model HostSubscription {
+  id              Int                @id @default(autoincrement())
+  
+  // Host reference
+  hostId          Int       @unique
+  host            User               @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  
+  // Current tier
+  tierId          Int
+  tier            HostTier           @relation("CurrentTier", fields: [tierId], references: [id])
+  
+  // Tier change tracking
+  previousTierId          Int?
+  previousTier            HostTier?         @relation("PreviousTier", fields: [previousTierId], references: [id])
+  
+  pendingTierId           Int?
+  pendingTier             HostTier?         @relation("PendingTier", fields: [pendingTierId], references: [id])
+  
+  tierChangeScheduledAt   DateTime?
+  
+  // Listing selection tracking
+  listingSelectionDeadline DateTime?
+  excessListingsCount     Int       @default(0)
+  
+  // Subscription details
+  billingCycle    BillingCycle?
+  currency        Currency           @default(NPR)
+  
+  status          SubscriptionStatus @default(ACTIVE)
+  
+  // Dates
+  startDate       DateTime           @default(now())
+  endDate         DateTime?
+  trialEndDate    DateTime?
+  
+  // Grace period tracking
+  gracePeriodEnd  DateTime?
+  
+  // Auto-renew
+  autoRenew       Boolean            @default(true)
+  
+  // Cancellation
+  cancelledAt     DateTime?
+  cancelReason    String?
+  
+  // Timestamps
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  // Relations
+  payments        Payment[]
+  history         SubscriptionHistory[]
+  
+  @@map("host_subscriptions")
+}
+
+model SubscriptionHistory {
+  id              Int                @id @default(autoincrement())
+  
+  subscriptionId  Int
+  subscription    HostSubscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  // What changed
+  action          String
+  fromTier        TierType?
+  toTier          TierType?
+  
+  // Details
+  details         Json?
+  
+  // Who made the change
+  changedBy       Int?
+  changedByType   String?
+  
+  createdAt       DateTime           @default(now())
+  
+  @@map("subscription_history")
+}
+
+model Payment {
+  id                  Int                @id @default(autoincrement())
+  
+  // References
+  subscriptionId      Int?
+  subscription        HostSubscription?  @relation(fields: [subscriptionId], references: [id])
+  
+  hostId              Int
+  host                User               @relation(fields: [hostId], references: [id])
+  
+  // Payment details
+  amount              Float
+  currency            Currency           @default(NPR)
+  
+  // Gateway info
+  gateway             PaymentGatewayType
+  gatewayTransactionId String?
+  gatewayResponse     Json?
+  
+  // Status
+  status              PaymentStatus      @default(PENDING)
+  
+  // Description
+  description         String?
+  
+  // Billing period
+  periodStart         DateTime?
+  periodEnd           DateTime?
+  
+  // Refund info
+  refundedAt          DateTime?
+  refundAmount        Float?
+  refundReason        String?
+  
+  // Proration tracking
+  type              PaymentType   @default(FULL)
+  proratedCredit    Float?
+  originalAmount    Float?
+  upgradeFromTierId Int?
+  metadata          Json?
+  
+  // Timestamps
+  paidAt              DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("payments")
+}
+
+model PaymentGatewayConfig {
+  id            Int                @id @default(autoincrement())
+  
+  gateway       PaymentGatewayType @unique
+  displayName   String
+  
+  // Credentials
+  merchantId    String?
+  secretKey     String?
+  publicKey     String?
+  
+  // URLs
+  baseUrl       String?
+  callbackUrl   String?
+  webhookSecret String?
+  
+  // Settings
+  isActive      Boolean            @default(false)
+  isTestMode    Boolean            @default(true)
+  
+  // Supported currencies
+  currencies    Currency[]         @default([NPR])
+  
+  // Countries
+  countries     String[]           @default(["NP"])
+  
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  
+  @@map("payment_gateway_configs")
+}
+
+model PlatformSettings {
+  id            Int      @id @default(autoincrement())
+  key           String   @unique
+  value         Json
+  description   String?
+  
+  editableBy    String   @default("SUPER_ADMIN")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("platform_settings")
+}
+
+// ==========================================
+// USER MODEL
+// ==========================================
 
 model User {
   id               Int       @id @default(autoincrement())
@@ -85,6 +411,12 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  // Tier tracking
+  subscription      HostSubscription?
+  payments          Payment[]
+  currentTier       TierType          @default(FREE)
+  tierExpiresAt     DateTime?
+
   // Core relations
   listings         Listing[]
   bookings         Booking[]
@@ -103,6 +435,13 @@ model User {
   reviewReports       ReviewReport[]       @relation("UserReviewReports")
   adminRefunds        Refund[]             @relation("AdminRefunds")
 
+  // Blog relations
+  blogPosts           BlogPost[]           @relation("BlogAuthor")
+  blogComments        BlogComment[]        @relation("BlogCommentAuthor")
+  blogLikes           BlogLike[]           @relation("BlogLikesUser")
+  blogCommentLikes    BlogCommentLike[]    @relation("CommentLikesUser")
+  contributorProfile  ContributorProfile?  @relation("ContributorProfile")
+
   @@index([email])
   @@index([role])
 }
@@ -118,6 +457,10 @@ model AdminProfile {
   @@index([role])
 }
 
+// ==========================================
+// LISTING MODEL
+// ==========================================
+
 model Listing {
   id               Int           @id @default(autoincrement())
   hostId           Int
@@ -131,20 +474,19 @@ model Listing {
 
   // Pricing
   hourlyRate       Decimal       @db.Decimal(10, 2)
- 
   minHours         Int           @default(1)
   maxHours         Int           @default(12)
   includedGuests   Int           @default(10)
   extraGuestCharge Decimal?      @db.Decimal(10, 2)
 
-  durationDiscounts Json?         // Flexible tiered discounts
-  bonusHoursOffer       Json?     // { minHours: 4, bonusHours: 1 }
+  durationDiscounts Json?
+  bonusHoursOffer       Json?
 
-  // Booking Settings (Host configurable)
-  autoConfirm        Boolean   @default(false)     // Auto-confirm bookings without host approval
-  minAdvanceBooking  Int       @default(24)        // Minimum hours before booking (default: 24 hours)
-  maxAdvanceBooking  Int       @default(90)        // Maximum days in advance (default: 90 days / 3 months)
-  instantBooking     Boolean   @default(true)      // Allow instant booking vs request-to-book
+  // Booking Settings
+  autoConfirm        Boolean   @default(false)
+  minAdvanceBooking  Int       @default(24)
+  maxAdvanceBooking  Int       @default(90)
+  instantBooking     Boolean   @default(true)
 
   // Details
   operatingHours   Json?
@@ -159,24 +501,29 @@ model Listing {
   featured         Boolean       @default(false)
   views            Int           @default(0)
 
-  // Featured listing (Admin controlled)
+  // Featured listing
   isFeatured        Boolean   @default(false)
   featuredUntil     DateTime?
   featuredPriority  Int       @default(0)
 
-  // Discount (Host can set, Admin can override)
+  // Discount
   discountPercent   Int       @default(0)
-  discountFrom      DateTime?                  // When discount starts
-  discountUntil     DateTime?                  // When discount ends
-  discountReason    String?                    // "Holiday Sale", "New Listing", etc.
+  discountFrom      DateTime?
+  discountUntil     DateTime?
+  discountReason    String?
 
-  // Promoted listing (Future monetization)
+  // Promoted listing
   isPromoted        Boolean   @default(false)
   promotedUntil     DateTime?
 
   // Analytics
   viewCount         Int       @default(0)
   bookingCount      Int       @default(0)
+
+  // Archive tracking
+  archivedAt      DateTime?
+  archivedReason  String?
+  previousStatus  ListingStatus?
 
   // Timestamps
   createdAt        DateTime      @default(now())
@@ -194,6 +541,7 @@ model Listing {
   moderations      ListingModeration[]
   specialPricing   SpecialPricing[]
   promotionRequests PromotionRequest[]
+  blogs            BlogPost[]    @relation("ListingBlogs")
 
   @@index([hostId])
   @@index([status])
@@ -202,13 +550,12 @@ model Listing {
   @@index([discountPercent])
 }
 
-// Special pricing for specific dates (holidays, weekends, etc.)
 model SpecialPricing {
   id          Int       @id @default(autoincrement())
   listingId   Int
   date        DateTime  @db.Date
   hourlyRate  Decimal   @db.Decimal(10, 2)
-  reason      String?   // e.g., "Holiday", "Peak Season", "Weekend"
+  reason      String?
   createdAt   DateTime  @default(now())
 
   listing     Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -218,16 +565,15 @@ model SpecialPricing {
   @@index([date])
 }
 
-// Promotion requests from hosts
 model PromotionRequest {
   id          Int       @id @default(autoincrement())
   listingId   Int
   hostId      Int
-  duration    Int       @default(7)   // Requested days of promotion
-  message     String?                  // Why they should be featured
-  status      String    @default("PENDING")  // PENDING, APPROVED, REJECTED
-  adminId     Int?                     // Admin who reviewed
-  adminNote   String?                  // Admin response/reason
+  duration    Int       @default(7)
+  message     String?
+  status      String    @default("PENDING")
+  adminId     Int?
+  adminNote   String?
   reviewedAt  DateTime?
   createdAt   DateTime  @default(now())
 
@@ -273,7 +619,7 @@ model Booking {
   extraGuestPrice  Decimal       @db.Decimal(10,2) @default(0)
   serviceFee       Decimal       @db.Decimal(10,2) @default(0)
   tax              Decimal       @db.Decimal(10,2) @default(0)
-  discountAmount   Decimal       @db.Decimal(10,2) @default(0)  // Track discount applied
+  discountAmount   Decimal       @db.Decimal(10,2) @default(0)
   totalPrice       Decimal       @db.Decimal(10,2)
 
   status           BookingStatus @default(PENDING)
@@ -341,7 +687,9 @@ model Review {
   @@index([rating])
 }
 
-//////////////////// ADMIN MODELS ////////////////////
+// ==========================================
+// ADMIN MODELS
+// ==========================================
 
 model AuditLog {
   id        Int      @id @default(autoincrement())
@@ -505,4 +853,182 @@ model Analytics {
 
   @@index([date])
   @@index([listingId])
+}
+
+// ==========================================
+// BLOG SYSTEM MODELS
+// ==========================================
+
+model BlogPost {
+  id              Int           @id @default(autoincrement())
+  
+  authorId        Int
+  authorType      Role
+  
+  listingId       Int?
+  
+  title           String        @db.VarChar(200)
+  slug            String        @unique
+  content         String        @db.Text
+  excerpt         String?       @db.VarChar(300)
+  
+  metaTitle       String?       @db.VarChar(70)
+  metaDescription String?       @db.VarChar(170)
+  focusKeyword    String?       @db.VarChar(50)
+  
+  wordCount       Int           @default(0)
+  readingTime     Int           @default(0)
+  seoScore        Int           @default(0)
+  
+  coverImage      String?
+  coverImageAlt   String?       @db.VarChar(150)
+  
+  category        BlogCategory  @default(GENERAL)
+  tags            String[]      @default([])
+  
+  status          BlogStatus    @default(DRAFT)
+  publishedAt     DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  
+  moderatedBy     Int?
+  moderatedAt     DateTime?
+  adminNote       String?
+  
+  isFeatured      Boolean       @default(false)
+  featuredUntil   DateTime?
+  allowComments   Boolean       @default(true)
+  
+  viewCount       Int           @default(0)
+  uniqueViews     Int           @default(0)
+  shareCount      Int           @default(0)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  author          User          @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  listing         Listing?      @relation("ListingBlogs", fields: [listingId], references: [id], onDelete: SetNull)
+  comments        BlogComment[] @relation("BlogComments")
+  likes           BlogLike[]    @relation("BlogLikes")
+  views           BlogView[]    @relation("BlogViews")
+  
+  @@index([authorId])
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([isFeatured])
+  @@index([slug])
+}
+
+model BlogComment {
+  id              Int           @id @default(autoincrement())
+  
+  blogPostId      Int
+  userId          Int
+  parentId        Int?
+  
+  content         String        @db.Text
+  
+  status          CommentStatus @default(VISIBLE)
+  
+  isAuthorReply   Boolean       @default(false)
+  isEdited        Boolean       @default(false)
+  editedAt        DateTime?
+  
+  flagCount       Int           @default(0)
+  flaggedBy       Int[]         @default([])
+  hiddenBy        Int?
+  hiddenAt        DateTime?
+  hiddenReason    String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  blogPost        BlogPost      @relation("BlogComments", fields: [blogPostId], references: [id], onDelete: Cascade)
+  user            User          @relation("BlogCommentAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  parent          BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         BlogComment[] @relation("CommentReplies")
+  likes           BlogCommentLike[] @relation("CommentLikes")
+  
+  @@index([blogPostId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BlogLike {
+  id              Int           @id @default(autoincrement())
+  blogPostId      Int
+  userId          Int
+  createdAt       DateTime      @default(now())
+  
+  blogPost        BlogPost      @relation("BlogLikes", fields: [blogPostId], references: [id], onDelete: Cascade)
+  user            User          @relation("BlogLikesUser", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([blogPostId, userId])
+  @@index([blogPostId])
+  @@index([userId])
+}
+
+model BlogCommentLike {
+  id              Int           @id @default(autoincrement())
+  commentId       Int
+  userId          Int
+  createdAt       DateTime      @default(now())
+  
+  comment         BlogComment   @relation("CommentLikes", fields: [commentId], references: [id], onDelete: Cascade)
+  user            User          @relation("CommentLikesUser", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model ContributorProfile {
+  id                  Int       @id @default(autoincrement())
+  userId              Int       @unique
+  
+  tier                Int       @default(0)
+  
+  totalBlogs          Int       @default(0)
+  publishedBlogs      Int       @default(0)
+  rejectedBlogs       Int       @default(0)
+  totalComments       Int       @default(0)
+  approvedComments    Int       @default(0)
+  totalLikesReceived  Int       @default(0)
+  totalViews          Int       @default(0)
+  
+  tierUpdatedAt       DateTime?
+  previousTier        Int?
+  
+  isBanned            Boolean   @default(false)
+  bannedAt            DateTime?
+  bannedReason        String?
+  bannedBy            Int?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  user                User      @relation("ContributorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([tier])
+  @@index([userId])
+}
+
+model BlogView {
+  id              Int       @id @default(autoincrement())
+  blogPostId      Int
+  userId          Int?
+  sessionId       String?
+  ipHash          String?
+  userAgent       String?
+  referrer        String?
+  createdAt       DateTime  @default(now())
+  
+  blogPost        BlogPost  @relation("BlogViews", fields: [blogPostId], references: [id], onDelete: Cascade)
+  
+  @@index([blogPostId])
+  @@index([userId])
+  @@index([createdAt])
 }

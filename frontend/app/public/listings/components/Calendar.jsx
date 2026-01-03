@@ -11,6 +11,7 @@ export default function Calendar({
   setBookingData,
   setShowCalendar,
   setShowTimeSlots,
+  baseHourlyRate, // ✅ Add this prop
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -55,7 +56,6 @@ export default function Calendar({
     }
     
     if (dayAvailability.status === 'partially-booked') {
-      const availableCount = dayAvailability.availableCount || 0;
       const availableRanges = formatTimeSlotRanges(dayAvailability.availableSlots || []);
       const bookedRanges = formatTimeSlotRanges(dayAvailability.bookedSlots || []);
       
@@ -136,14 +136,14 @@ export default function Calendar({
       </div>
 
       {/* Weekdays */}
-      <div className="grid grid-cols-7 gap-2 mb-2">
+      <div className="grid grid-cols-7 gap-1 mb-2">
         {DAYS.map((day, i) => (
           <div key={i} className="text-center text-xs font-bold text-stone-500 py-1">{day}</div>
         ))}
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1">
         {[...Array(start)].map((_, i) => (
           <div key={`empty-${i}`} className="aspect-square" />
         ))}
@@ -162,6 +162,9 @@ export default function Calendar({
           const selected = bookingData.date === dateStr;
 
           const dayAvailability = availabilityData[dateStr];
+          const hasSpecialPricing = dayAvailability?.specialPricing;
+          const effectiveRate = dayAvailability?.effectiveRate || baseHourlyRate;
+          
           let bgColor = "bg-stone-50 hover:bg-stone-100";
           let textColor = "text-stone-800";
           let borderColor = "border-stone-200";
@@ -183,14 +186,25 @@ export default function Calendar({
               borderColor = "border-red-200";
               availabilityStatus = "fully-booked";
             } else if (dayAvailability.status === "partially-booked") {
-              bgColor = "bg-amber-50/50 hover:bg-amber-50";
+              if (hasSpecialPricing) {
+                bgColor = "bg-gradient-to-br from-amber-50 to-purple-50 hover:from-amber-100 hover:to-purple-100";
+                borderColor = "border-purple-300";
+              } else {
+                bgColor = "bg-amber-50/50 hover:bg-amber-50";
+                borderColor = "border-amber-200";
+              }
               textColor = "text-amber-700";
-              borderColor = "border-amber-200";
               availabilityStatus = "partially-booked";
             } else if (dayAvailability.status === "available") {
-              bgColor = "bg-emerald-50/50 hover:bg-emerald-100/50";
-              textColor = "text-emerald-700";
-              borderColor = "border-emerald-200";
+              if (hasSpecialPricing) {
+                bgColor = "bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100";
+                textColor = "text-purple-700";
+                borderColor = "border-purple-300";
+              } else {
+                bgColor = "bg-emerald-50/50 hover:bg-emerald-100/50";
+                textColor = "text-emerald-700";
+                borderColor = "border-emerald-200";
+              }
             }
           }
           
@@ -202,14 +216,37 @@ export default function Calendar({
               onClick={() => selectDate(day)}
               disabled={isDisabled}
               className={`
-                aspect-square w-full rounded-lg transition-all duration-200 flex flex-col items-center justify-center
-                ${bgColor} ${textColor} ${borderColor} border
+                aspect-square w-full rounded-lg transition-all duration-200 flex flex-col items-center justify-center relative p-1
+                ${bgColor} ${borderColor} border
                 ${isToday && !selected ? "ring-2 ring-emerald-400 ring-offset-1" : ""}
                 ${selected ? "!bg-gradient-to-br from-emerald-500 to-teal-500 !text-white !border-emerald-500 shadow-md scale-105" : ""}
                 ${!isDisabled ? "hover:scale-105 hover:shadow-sm active:scale-95" : "cursor-not-allowed opacity-60"}
               `}
             >
-              <span className={`text-sm font-semibold ${selected ? "text-white" : ""}`}>{day}</span>
+              {/* Day number */}
+              <span className={`text-sm font-semibold ${selected ? "text-white" : textColor}`}>
+                {day}
+              </span>
+              
+              {/* ✅ Show price on available dates */}
+              {!isPast && availabilityStatus !== "unavailable" && availabilityStatus !== "fully-booked" && effectiveRate && (
+                <span className={`text-[9px] font-medium leading-tight ${
+                  selected 
+                    ? "text-white/90" 
+                    : hasSpecialPricing 
+                      ? "text-purple-600" 
+                      : "text-stone-500"
+                }`}>
+                  ${effectiveRate}
+                </span>
+              )}
+              
+              {/* ✅ Special pricing badge */}
+              {hasSpecialPricing && !selected && !isPast && availabilityStatus !== "unavailable" && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full flex items-center justify-center">
+                  <span className="text-[6px] text-white font-bold">★</span>
+                </span>
+              )}
             </button>
           );
         })}
@@ -219,15 +256,21 @@ export default function Calendar({
       <div className="mt-4 pt-4 border-t border-stone-200">
         <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-emerald-50/50 border border-emerald-200"></div>
+            <div className="w-3 h-3 rounded bg-emerald-50 border border-emerald-200"></div>
             <span className="text-stone-600">Available</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-amber-50/50 border border-amber-200"></div>
+            <div className="w-3 h-3 rounded bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-300 relative">
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+            </div>
+            <span className="text-stone-600">Special Price</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded bg-amber-50 border border-amber-200"></div>
             <span className="text-stone-600">Partial</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-red-50/50 border border-red-200"></div>
+            <div className="w-3 h-3 rounded bg-red-50 border border-red-200"></div>
             <span className="text-stone-600">Unavailable</span>
           </div>
         </div>

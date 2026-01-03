@@ -18,6 +18,10 @@ import hostReviewRoutes from './routes/hostReviewRoutes.js';
 import discoveryRoutes from "./routes/discoveryRoutes.js";
 import { completeExpiredBookings } from "./controllers/bookingController.js";
 
+import blogRoutes from "./routes/blogRoutes.js";
+import userBlogRoutes from "./routes/userBlogRoutes.js";
+import hostBlogRoutes from "./routes/hostBlogRoutes.js";
+import adminBlogRoutes from "./routes/adminBlogRoutes.js";
 const app = express();
 
 // ============ MIDDLEWARE (ORDER MATTERS!) ============
@@ -54,6 +58,34 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/discover", discoveryRoutes);
 
+import {
+  tierPublicRoutes,
+  hostSubscriptionRoutes,
+  paymentRoutes,
+  paymentCallbackRoutes,
+  adminTierRoutes,
+} from "./routes/tierRoutes.js";
+
+
+// Public tier info (no auth)
+app.use("/api/public", tierPublicRoutes);
+
+// Host subscription management
+app.use("/api/host/tier", hostSubscriptionRoutes);
+
+// Payment routes
+app.use("/api/payments", paymentRoutes);
+
+// Payment callbacks (called by gateways)
+app.use("/api/payments/callback", paymentCallbackRoutes);
+
+// Admin tier management
+app.use("/api/admin/tiers", adminTierRoutes);
+// Blog Routes
+app.use("/api/blogs", blogRoutes);
+app.use("/api/user/blogs", userBlogRoutes);
+app.use("/api/host/blogs", hostBlogRoutes);
+app.use("/api/admin/blogs", adminBlogRoutes);
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! myBigYard Server is working. 🏡");

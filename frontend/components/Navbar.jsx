@@ -21,7 +21,7 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-gray-100/80 shadow-sm">
+    <nav className="sticky top-0 z-60 bg-white/90 backdrop-blur-lg border-b border-gray-100/80 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo Section */}
         <Link 
@@ -46,11 +46,22 @@ export default function Navbar() {
 
         {/* Right Menu */}
         <div className="flex items-center gap-3">
+          {/* Blog Link - Always Visible for Everyone */}
+          <Link
+            href="/blogs"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-full border border-orange-200 transition-all duration-200 hover:scale-105"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
+            Blog
+          </Link>
+
           {!user ? (
             <>
               <Link
                 href="/"
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-all duration-200"
+                className="hidden sm:block px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-all duration-200"
               >
                 Browse Spaces
               </Link>
@@ -87,7 +98,7 @@ export default function Navbar() {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-3 group relative"
               >
-                <div className="flex flex-col items-end">
+                <div className="hidden sm:flex flex-col items-end">
                   <span className="text-sm font-semibold text-gray-800 group-hover:text-emerald-700 transition-colors">
                     {user.name || "User"}
                   </span>
