@@ -91,25 +91,32 @@ const DEFAULT_TIERS = {
 
 // NPR Pricing
 const DEFAULT_PRICING_NPR = {
-  FREE: { WEEKLY: { price: 0, discount: 0, finalPrice: 0 }, MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
-  BASIC: { WEEKLY: { price: 149, discount: 0, finalPrice: 149 }, MONTHLY: { price: 499, discount: 0, finalPrice: 499 }, YEARLY: { price: 5988, discount: 16, finalPrice: 4999 } },
-  PRO: { WEEKLY: { price: 299, discount: 0, finalPrice: 299 }, MONTHLY: { price: 999, discount: 0, finalPrice: 999 }, YEARLY: { price: 11988, discount: 16, finalPrice: 9999 } },
-  PREMIUM: { WEEKLY: { price: 599, discount: 0, finalPrice: 599 }, MONTHLY: { price: 1999, discount: 0, finalPrice: 1999 }, YEARLY: { price: 23988, discount: 16, finalPrice: 19999 } },
+  FREE: { MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
+  BASIC: { 
+    MONTHLY: { price: 499, discount: 0, finalPrice: 499 }, YEARLY: { price: 5988, discount: 16, finalPrice: 4999 } },
+  PRO: { 
+    MONTHLY: { price: 999, discount: 0, finalPrice: 999 }, YEARLY: { price: 11988, discount: 16, finalPrice: 9999 } },
+  PREMIUM: { 
+    MONTHLY: { price: 1999, discount: 0, finalPrice: 1999 }, YEARLY: { price: 23988, discount: 16, finalPrice: 19999 } },
 };
 
 // USD Pricing
 const DEFAULT_PRICING_USD = {
-  FREE: { WEEKLY: { price: 0, discount: 0, finalPrice: 0 }, MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
-  BASIC: { WEEKLY: { price: 2, discount: 0, finalPrice: 2 }, MONTHLY: { price: 5, discount: 0, finalPrice: 5 }, YEARLY: { price: 60, discount: 18, finalPrice: 49 } },
-  PRO: { WEEKLY: { price: 3, discount: 0, finalPrice: 3 }, MONTHLY: { price: 10, discount: 0, finalPrice: 10 }, YEARLY: { price: 120, discount: 17, finalPrice: 99 } },
-  PREMIUM: { WEEKLY: { price: 6, discount: 0, finalPrice: 6 }, MONTHLY: { price: 20, discount: 0, finalPrice: 20 }, YEARLY: { price: 240, discount: 17, finalPrice: 199 } },
+  FREE: { 
+    MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
+  BASIC: { 
+    MONTHLY: { price: 5, discount: 0, finalPrice: 5 }, YEARLY: { price: 60, discount: 18, finalPrice: 49 } },
+  PRO: { 
+    MONTHLY: { price: 10, discount: 0, finalPrice: 10 }, YEARLY: { price: 120, discount: 17, finalPrice: 99 } },
+  PREMIUM: { 
+    MONTHLY: { price: 20, discount: 0, finalPrice: 20 }, YEARLY: { price: 240, discount: 17, finalPrice: 199 } },
 };
 
 // Payment Gateways
 const PAYMENT_GATEWAYS = [
   { gateway: "ESEWA", displayName: "eSewa", merchantId: "EPAYTEST", secretKey: "8gBm/:&EnhH.10Le", baseUrl: "https://uat.esewa.com.np", isActive: true, isTestMode: true, currencies: ["NPR"], countries: ["NP"] },
   { gateway: "KHALTI", displayName: "Khalti", publicKey: "test_public_key_xxx", secretKey: "test_secret_key_xxx", baseUrl: "https://a.khalti.com/api/v2", isActive: true, isTestMode: true, currencies: ["NPR"], countries: ["NP"] },
-  { gateway: "DODO", displayName: "Card Payment (Dodo)", publicKey: "test_public_key_xxx", secretKey: "test_secret_key_xxx", baseUrl: "https://api.dodopayments.com", isActive: true, isTestMode: true, currencies: ["USD", "NPR"], countries: ["US","GB","IN","AU","CA"] },
+  { gateway: "DODO", displayName: "Card Payment (Dodo)", publicKey: "test_public_key_xxx", secretKey: "test_secret_key_xxx", baseUrl: "https://api.dodopayments.com", isActive: true, isTestMode: true, currencies: ["USD"], countries: ["*"] },
 ];
 
 async function seedTiers() {
@@ -137,14 +144,18 @@ async function seedTiers() {
 
 async function seedPaymentGateways() {
   console.log("🌱 Seeding payment gateways...\n");
-  const existing = await prisma.paymentGatewayConfig.count();
-  if (existing > 0) return console.log("⚠️ Payment gateways already exist, skipping seed.");
-
+  
+  // Force insert using upsert instead of checking count
   for (const gateway of PAYMENT_GATEWAYS) {
-    console.log(`Creating gateway: ${gateway.displayName}...`);
-    await prisma.paymentGatewayConfig.create({ data: gateway });
-    console.log(`✅ ${gateway.displayName} created\n`);
+    console.log(`Upserting gateway: ${gateway.displayName}...`);
+    await prisma.paymentGatewayConfig.upsert({
+      where: { gateway: gateway.gateway },
+      update: gateway,
+      create: gateway,
+    });
+    console.log(`✅ ${gateway.displayName} upserted\n`);
   }
+  
   console.log("✅ All payment gateways seeded successfully!\n");
 }
 

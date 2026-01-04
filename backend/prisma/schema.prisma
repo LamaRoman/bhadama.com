@@ -204,6 +204,7 @@ model TierPricing {
   @@map("tier_pricing")
 }
 
+
 model HostSubscription {
   id              Int                @id @default(autoincrement())
   

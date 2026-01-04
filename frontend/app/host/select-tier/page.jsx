@@ -1,3 +1,5 @@
+// File: TierSelectionPage.js - Updated without weekly
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -160,11 +162,14 @@ export default function TierSelectionPage() {
     return "downgrade";
   };
 
-  // Handle tier selection
+  // Handle tier selection - FIXED VERSION
   const handleSelectTier = async (tier) => {
+    console.log("🚀 handleSelectTier called with tier:", tier);
+    
     if (processing) return;
     
     const relation = getTierRelation(tier.name);
+    console.log("Relation to current tier:", relation);
     
     // If it's the current tier, do nothing
     if (relation === "current") {
@@ -236,12 +241,24 @@ export default function TierSelectionPage() {
     }
   };
 
-  // Handle new subscription (no current subscription)
+  // Handle new subscription (no current subscription) - UPDATED VERSION
   const handleNewSubscription = async (tier) => {
+    console.log("🚀 handleNewSubscription called with tier:", tier);
+    console.log("Selected billing cycle:", selectedBillingCycle);
+    console.log("Currency:", currency);
+    
     if (processing) return;
     setProcessing(tier.id);
 
     try {
+      // DEBUG: Log the request
+      console.log("Making API call to /api/host/tier/subscription/select");
+      console.log("Request body:", {
+        tierId: tier.id,
+        billingCycle: selectedBillingCycle,
+        currency,
+      });
+
       const data = await api("/api/host/tier/subscription/select", {
         method: "POST",
         body: {
@@ -251,19 +268,25 @@ export default function TierSelectionPage() {
         },
       });
 
+      console.log("API Response:", data);
+
       if (data.error) {
         toast.error(data.error);
+        setProcessing(null);
         return;
       }
 
       if (data.requiresPayment) {
-        router.push(`/host/payment?payment=${data.payment.id}`);
+        console.log("Payment required, redirecting to payment page");
+        console.log("Payment ID:", data.payment?.id);
+        router.push(`/host/payment?payment=${data.payment?.id || data.paymentId}`);
       } else {
-        toast.success(data.message);
+        toast.success(data.message || "Subscription activated!");
         router.push("/host/dashboard");
       }
     } catch (error) {
-      toast.error("Failed to select tier");
+      console.error("Payment selection error:", error);
+      toast.error(error.message || "Failed to select tier");
     } finally {
       setProcessing(null);
     }
@@ -444,14 +467,14 @@ export default function TierSelectionPage() {
           </div>
         )}
 
-        {/* Billing Cycle Toggle */}
+        {/* Billing Cycle Toggle - UPDATED (Removed WEEKLY) */}
         <div className="flex justify-center mb-8">
           <div className="bg-gray-100 p-1 rounded-xl inline-flex">
-            {["WEEKLY", "MONTHLY", "YEARLY"].map((cycle) => (
+            {["MONTHLY", "YEARLY"].map((cycle) => (
               <button
                 key={cycle}
                 onClick={() => setSelectedBillingCycle(cycle)}
-                className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-8 py-2 rounded-lg text-sm font-medium transition-all ${
                   selectedBillingCycle === cycle
                     ? "bg-white text-gray-900 shadow-sm"
                     : "text-gray-600 hover:text-gray-900"

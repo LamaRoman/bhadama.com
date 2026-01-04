@@ -485,27 +485,52 @@ export const getPaymentDetails = async (req, res) => {
 
 export const getAvailableGateways = async (req, res) => {
   try {
-    const { country = "NP" } = req.query;
+    const { country = "NP", currency = "NPR" } = req.query;
 
-    const gateways = await prisma.paymentGatewayConfig.findMany({
+    console.log('🔍 Fetching gateways for:', { country, currency });
+
+    // Fetch ALL active gateways first
+    const allGateways = await prisma.paymentGatewayConfig.findMany({
       where: {
         isActive: true,
-        countries: { has: country },
       },
       select: {
         gateway: true,
         displayName: true,
         currencies: true,
+        countries: true,
       },
     });
 
+    console.log('📋 All gateways from DB:', allGateways);
+
+    // Filter based on country and currency support
+    const gateways = allGateways.filter(gateway => {
+      // Check if gateway supports all countries (wildcard "*")
+      const supportsAllCountries = gateway.countries.includes("*");
+      
+      // Check if gateway specifically lists this country
+      const supportsThisCountry = gateway.countries.includes(country);
+      
+      // Check if gateway supports this currency
+      const supportsCurrency = gateway.currencies.includes(currency);
+      
+      // Must support currency AND (all countries OR this specific country)
+      const isAvailable = supportsCurrency && (supportsAllCountries || supportsThisCountry);
+      
+      console.log(`  ${gateway.gateway}: currency=${supportsCurrency}, country=${supportsAllCountries || supportsThisCountry} → ${isAvailable ? '✅' : '❌'}`);
+      
+      return isAvailable;
+    });
+
+    console.log('✅ Filtered gateways:', gateways);
+
     res.json({ gateways, country });
   } catch (error) {
-    console.error("Get gateways error:", error);
+    console.error("❌ Get gateways error:", error);
     res.status(500).json({ error: "Failed to fetch gateways" });
   }
 };
-
 export default {
   initiatePayment,
   esewaCallback,
