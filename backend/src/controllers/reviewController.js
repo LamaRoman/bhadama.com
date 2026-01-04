@@ -11,22 +11,6 @@ const updateListingRating = async (listingId) => {
   // Disabled - remove this function call from createReview and updateReview
   // if you don't plan to add these fields to the schema
   return;
-  
-  /* Original implementation (uncomment if you add the fields):
-  const reviews = await prisma.review.findMany({ where: { listingId } });
-  if (reviews.length === 0) return;
-
-  const averageRating =
-    reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-
-  await prisma.listing.update({
-    where: { id: listingId },
-    data: {
-      averageRating: parseFloat(averageRating.toFixed(1)),
-      reviewCount: reviews.length,
-    },
-  });
-  */
 };
 
 /* --------------------------- GET REVIEWS --------------------------- */
@@ -88,36 +72,33 @@ export const getReviews = async (req, res) => {
   }
 };
 
-
 /* --------------------------- CHECK CAN REVIEW --------------------------- */
 export const checkCanReview = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = req.user.id;
+    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
 
     if (isNaN(listingId))
-      return res
-        .status(400)
-        .json({
-          success: false,
-          canReview: false,
-          reason: "Invalid listing ID",
-          code: "INVALID_LISTING_ID",
-        });
+      return res.status(400).json({
+        success: false,
+        canReview: false,
+        reason: "Invalid listing ID",
+        code: "INVALID_LISTING_ID",
+      });
 
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
       select: { id: true, hostId: true, status: true },
     });
+    
     if (!listing)
-      return res
-        .status(404)
-        .json({
-          success: false,
-          canReview: false,
-          reason: "Listing not found",
-          code: "LISTING_NOT_FOUND",
-        });
+      return res.status(404).json({
+        success: false,
+        canReview: false,
+        reason: "Listing not found",
+        code: "LISTING_NOT_FOUND",
+      });
+      
     if (listing.status !== "ACTIVE")
       return res.json({
         success: false,
@@ -125,6 +106,7 @@ export const checkCanReview = async (req, res) => {
         reason: "Listing is not active",
         code: "LISTING_INACTIVE",
       });
+      
     if (listing.hostId === userId)
       return res.json({
         success: false,
@@ -136,6 +118,7 @@ export const checkCanReview = async (req, res) => {
     const existingReview = await prisma.review.findFirst({
       where: { listingId, userId },
     });
+    
     if (existingReview)
       return res.json({
         success: false,
@@ -163,6 +146,7 @@ export const checkCanReview = async (req, res) => {
       const anyBooking = await prisma.booking.findFirst({
         where: { listingId, userId },
       });
+      
       if (!anyBooking)
         return res.json({
           success: false,
@@ -171,6 +155,7 @@ export const checkCanReview = async (req, res) => {
           code: "NO_BOOKINGS",
           suggestion: "Book this space to leave a review",
         });
+        
       return res.json({
         success: false,
         canReview: false,
@@ -219,15 +204,12 @@ export const checkCanReview = async (req, res) => {
     });
   } catch (error) {
     console.error("Check review eligibility error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        canReview: false,
-        reason: "Server error",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
+    res.status(500).json({
+      success: false,
+      canReview: false,
+      reason: "Server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 
@@ -235,7 +217,7 @@ export const checkCanReview = async (req, res) => {
 export const createReview = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = req.user?.id;
+    const userId = BigInt(req.user?.userId); // Fixed: use userId and convert to BigInt
 
     const {
       bookingId,
@@ -250,7 +232,7 @@ export const createReview = async (req, res) => {
       value = 5,
     } = req.body;
 
-    if (!userId)
+    if (!req.user?.userId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
 
     if (!listingId || isNaN(listingId))
@@ -267,7 +249,7 @@ export const createReview = async (req, res) => {
     // 🔒 Validate booking ownership + status
     const booking = await prisma.booking.findFirst({
       where: {
-        id: bookingId,
+        id: parseInt(bookingId),
         userId,
         listingId,
         status: "COMPLETED",
@@ -297,7 +279,7 @@ export const createReview = async (req, res) => {
         location,
         checkin,
         value,
-        booking: { connect: { id: bookingId } },
+        booking: { connect: { id: parseInt(bookingId) } },
         listing: { connect: { id: listingId } },
         user: { connect: { id: userId } },
       },
@@ -307,7 +289,7 @@ export const createReview = async (req, res) => {
     });
 
     await prisma.booking.update({
-      where: { id: bookingId },
+      where: { id: parseInt(bookingId) },
       data: { hasReviewed: true },
     });
 
@@ -325,16 +307,15 @@ export const createReview = async (req, res) => {
   }
 };
 
-
 /* --------------------------- UPDATE REVIEW --------------------------- */
 export const updateReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
     const { rating, title, comment } = req.body;
 
     const review = await prisma.review.findFirst({
-      where: { id, userId },
+      where: { id: parseInt(id), userId },
     });
 
     if (!review)
@@ -354,7 +335,7 @@ export const updateReview = async (req, res) => {
       });
 
     const updated = await prisma.review.update({
-      where: { id },
+      where: { id: parseInt(id) },
       data: {
         rating: rating ? Math.min(Math.max(Number(rating), 1), 5) : review.rating,
         title: title ?? review.title,
@@ -374,23 +355,32 @@ export const updateReview = async (req, res) => {
   }
 };
 
-
 /* --------------------------- MARK HELPFUL --------------------------- */
 export const markHelpful = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
 
     const existingHelpful = await prisma.reviewHelpful.findUnique({
-      where: { reviewId_userId: { reviewId: id, userId } },
+      where: { 
+        reviewId_userId: { 
+          reviewId: parseInt(id), 
+          userId 
+        } 
+      },
     });
 
     if (existingHelpful) {
       await prisma.reviewHelpful.delete({
-        where: { reviewId_userId: { reviewId: id, userId } },
+        where: { 
+          reviewId_userId: { 
+            reviewId: parseInt(id), 
+            userId 
+          } 
+        },
       });
       await prisma.review.update({
-        where: { id },
+        where: { id: parseInt(id) },
         data: { helpfulCount: { decrement: 1 } },
       });
       return res.json({
@@ -400,9 +390,15 @@ export const markHelpful = async (req, res) => {
       });
     }
 
-    await prisma.reviewHelpful.create({ data: { reviewId: id, userId } });
+    await prisma.reviewHelpful.create({ 
+      data: { 
+        reviewId: parseInt(id), 
+        userId 
+      } 
+    });
+    
     await prisma.review.update({
-      where: { id },
+      where: { id: parseInt(id) },
       data: { helpfulCount: { increment: 1 } },
     });
 
@@ -417,33 +413,49 @@ export const markHelpful = async (req, res) => {
 export const reportReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
     const { reason } = req.body;
 
     const existingReport = await prisma.reviewReport.findUnique({
-      where: { reviewId_userId: { reviewId: id, userId } },
+      where: { 
+        reviewId_userId: { 
+          reviewId: parseInt(id), 
+          userId 
+        } 
+      },
     });
+    
     if (existingReport)
-      return res
-        .status(400)
-        .json({ success: false, message: "Already reported this review" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Already reported this review" 
+      });
 
     await prisma.reviewReport.create({
-      data: { reviewId: id, userId, reason: reason || "Inappropriate content" },
+      data: { 
+        reviewId: parseInt(id), 
+        userId, 
+        reason: reason || "Inappropriate content" 
+      },
     });
 
     const reportCount = await prisma.reviewReport.count({
-      where: { reviewId: id },
+      where: { reviewId: parseInt(id) },
     });
+    
     if (reportCount >= 3)
-      await prisma.review.update({ where: { id }, data: { reported: true } });
+      await prisma.review.update({ 
+        where: { id: parseInt(id) }, 
+        data: { reported: true } 
+      });
 
     res.json({ success: true, message: "Review reported successfully" });
   } catch (error) {
     console.error("Report review error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to report review" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to report review" 
+    });
   }
 };
 
@@ -451,14 +463,21 @@ export const reportReview = async (req, res) => {
 export const getEligibleBookings = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = req.user.id;
+    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    
     if (isNaN(listingId))
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid listing ID" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid listing ID" 
+      });
 
     const completedBookings = await prisma.booking.findMany({
-      where: { listingId, userId, status: "COMPLETED", review: { is: null } },
+      where: { 
+        listingId, 
+        userId, 
+        status: "COMPLETED", 
+        review: { is: null } 
+      },
       orderBy: { bookingDate: "desc" },
       select: {
         id: true,
@@ -473,14 +492,10 @@ export const getEligibleBookings = async (req, res) => {
     res.json({ success: true, bookings: completedBookings });
   } catch (error) {
     console.error("Get eligible bookings error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch eligible bookings",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch eligible bookings",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
-
