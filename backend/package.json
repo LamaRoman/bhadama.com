@@ -5,9 +5,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/app.js"
-  },
+  "dev": "nodemon src/app.js",
+  "build": "tsc",                            // if using TypeScript
+  "start": "node src/app.js",               // production start
+  "prisma:generate": "prisma generate",
+  "prisma:migrate": "prisma migrate deploy"
+}
+,
   "keywords": [],
   "author": "",
   "license": "ISC",
