@@ -67,41 +67,63 @@ router.get(
 
 // Register with email/password
 router.post("/register", async (req, res) => {
+  const generateToken = (user) => {
+  return jwt.sign(
+    {
+      userId: user.id.toString(),   // BigInt -> string
+      email: user.email,
+      role: user.role,
+      adminRole: user.adminRole || null,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+};
   try {
     const { name, email, password, role = "USER" } = req.body;
 
+    // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: "Email already registered" });
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Create user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: role === "HOST" ? "HOST" : "USER"
-      }
+        role: role === "HOST" ? "HOST" : "USER",
+      },
     });
 
+    // Generate JWT
     const token = generateToken(user);
 
+    // Send JSON response with stringified IDs
     res.status(201).json({
       message: "Registration successful",
       token,
       user: {
-        id: user.id.toString(),
+        id: user.id.toString(),   // BigInt -> string
         name: user.name,
         email: user.email,
         role: user.role,
-        profilePhoto: user.profilePhoto
-      }
+        profilePhoto: user.profilePhoto || null,
+      },
     });
   } catch (error) {
     console.error("Register error:", error);
-    res.status(500).json({ error: "Registration failed" });
+
+    // Include error message in dev/debug mode only
+    res.status(500).json({
+      error: "Registration failed",
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
