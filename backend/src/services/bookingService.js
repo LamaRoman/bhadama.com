@@ -266,7 +266,8 @@ export async function getUserBookings(userId) {
 export async function getHostBookings(hostId) {
   return prisma.booking.findMany({
     where: {
-      listing: Number(hostId),
+      listing: {
+        hostId:Number(hostId)},
     },
     include: {
       listing: {
