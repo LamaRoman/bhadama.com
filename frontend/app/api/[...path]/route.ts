@@ -24,7 +24,7 @@ async function handleRequest(request: NextRequest) {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:5001';
     
-    // Get the path from the URL (e.g., /api/discover/homepage)
+    // Get the path from the URL (e.g., /api/auth/register)
     const path = request.nextUrl.pathname;
     
     // Get query parameters
@@ -41,7 +41,6 @@ async function handleRequest(request: NextRequest) {
       method: request.method,
       headers: {
         'Content-Type': 'application/json',
-        // Forward authorization header if present
         ...(request.headers.get('authorization') && {
           'Authorization': request.headers.get('authorization')!
         }),
@@ -55,15 +54,30 @@ async function handleRequest(request: NextRequest) {
         options.body = body;
       }
     }
-    
+
+    // Make the request to the backend
     const response = await fetch(url, options);
-    
-    const data = await response.text();
-    
-    return new NextResponse(data, {
+
+    // Determine content type
+    const contentType = response.headers.get('Content-Type');
+
+    let data: any;
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    // Log backend errors for debugging
+    if (!response.ok) {
+      console.error(`Backend error: ${response.status}`, data);
+    }
+
+    // Return response to the frontend
+    return new NextResponse(JSON.stringify(data), {
       status: response.status,
       headers: {
-        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        'Content-Type': 'application/json',
       },
     });
     

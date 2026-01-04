@@ -69,6 +69,7 @@ function HostRegisterContent() {
 
     try {
       const data = await api("/api/auth/register", {
+
         method: "POST",
         body: formData,
       });
