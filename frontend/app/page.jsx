@@ -240,7 +240,7 @@ function HomeContent() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a
-              href="/host/listings/new"
+              href="/auth/register/host"
               className="px-6 py-3 bg-white text-emerald-600 font-bold rounded-xl hover:shadow-lg"
             >
               Become a Host
