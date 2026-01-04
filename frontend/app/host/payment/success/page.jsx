@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "../../../../contexts/AuthContext";
-import { api } from "../../../../utils/api";
+import { useAuth } from "../../../contexts/AuthContext.js";
+import { api } from "../../../utils/api.js";
 import Link from "next/link";
 import {
   CheckCircle, Loader2, ArrowRight, Download,

@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "../utils/api.js";
+import { api } from "../../utils/api.js";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight, Loader2,
   Gift, TrendingUp, Sparkles, Tag, MapPin, Users, Star,
@@ -17,7 +17,7 @@ import {
   getDurationTiers,
   getBonusOffer,
   OFFER_FILTER_TYPES,
-} from "../../hooks/useListingFilters";
+} from "../../../hooks/useListingFilters.js";
 
 // Offer filter options
 const OFFER_FILTER_OPTIONS = [
