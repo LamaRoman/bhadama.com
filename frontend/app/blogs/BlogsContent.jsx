@@ -43,7 +43,7 @@ const getCategoryLabel = (category) => {
   return cat?.label || category;
 };
 
-// BlogCard Component (FIXED - uses useRouter from parent scope)
+// BlogCard Component
 const BlogCard = ({ blog, featured = false, onBlogClick }) => {
   return (
     <article 
@@ -159,12 +159,19 @@ export default function BlogsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [apiError, setApiError] = useState(null);
   
-  const [search, setSearch] = useState(searchParams.get("search") || "");
-  const [category, setCategory] = useState(searchParams.get("category") || "all");
-  const [sort, setSort] = useState(searchParams.get("sort") || "newest");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
+
+  // Initialize from URL params after mount
+  useEffect(() => {
+    setSearch(searchParams.get("search") || "");
+    setCategory(searchParams.get("category") || "all");
+    setSort(searchParams.get("sort") || "newest");
+  }, [searchParams]);
 
   const fetchBlogs = async (pageNum = 1, append = false) => {
     try {
