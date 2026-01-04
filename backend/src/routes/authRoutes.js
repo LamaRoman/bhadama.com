@@ -92,7 +92,7 @@ router.post("/register", async (req, res) => {
       message: "Registration successful",
       token,
       user: {
-        id: user.id,
+        id: user.id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
