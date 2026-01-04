@@ -225,7 +225,7 @@ function RegisterContent() {
             </p>
             <p className="text-sm text-gray-600">
               Want to list your space?{' '}
-              <Link href="/host/register/host" className="font-semibold text-emerald-600 hover:text-emerald-500">
+              <Link href="/auth/register/host" className="font-semibold text-emerald-600 hover:text-emerald-500">
                 Register as Host
               </Link>
             </p>
