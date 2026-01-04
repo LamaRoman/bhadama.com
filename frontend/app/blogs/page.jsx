@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import BlogsContent from "./BlogsContent";
 
-export const dynamic = 'force-dynamic'; // Move it here
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
 
 export default function BlogsPage() {
   return (
