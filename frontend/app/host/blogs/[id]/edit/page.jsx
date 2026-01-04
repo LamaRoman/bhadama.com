@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useAuth } from "../../../../contexts/AuthContext";
-import { api } from "../../../../utils/api";
+import { useAuth } from "../../../../../contexts/AuthContext";
+import { api } from "../../../../../utils/api";
 import { toast, Toaster } from "react-hot-toast";
 import dynamic from "next/dynamic";
 import SEOScoreIndicator from "../../../../../components/blog/SEOScoreIndicator";

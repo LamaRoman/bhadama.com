@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../../contexts/AuthContext.js";
-import { api } from "../../utils/api.js";
+import { useAuth } from "../../../contexts/AuthContext.js";
+import { api } from "../../../utils/api.js";
 import { toast, Toaster } from "react-hot-toast";
 import {
   Check, X, Crown, Zap, Star, Rocket,

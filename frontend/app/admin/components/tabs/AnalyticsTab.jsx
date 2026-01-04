@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 import { LoadingSpinner, formatCurrency, formatNumber } from "../shared";
 import { TrendingUp, DollarSign, Users, Calendar, Download } from "lucide-react";
 import { toast } from "react-hot-toast";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 import { toast } from "react-hot-toast";
 import { Star, Search, Check, X, TrendingUp, Clock } from "lucide-react";
 

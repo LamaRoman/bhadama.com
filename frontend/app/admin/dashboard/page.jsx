@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useAuth } from "../../contexts/AuthContext.js";
+import { useAuth } from "../../../contexts/AuthContext.js";
 import { ProtectedRoute } from "../../../components/ProtectedRoute.jsx";
 import {
   BarChart3, Users, Calendar, Star, TrendingUp,

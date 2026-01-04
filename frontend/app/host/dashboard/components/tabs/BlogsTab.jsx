@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/app/utils/api";
+import { api } from "@/utils/api";
 import { toast } from "react-hot-toast";
 import {
   Plus, Edit, Trash2, Eye, EyeOff, Send, Clock,

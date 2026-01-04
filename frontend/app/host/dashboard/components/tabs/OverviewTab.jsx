@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, memo } from "react";
-import { api } from "../../../../utils/api.js";
+import { api } from "../../../../../utils/api.js";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import dynamic from "next/dynamic";

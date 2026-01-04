@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../../../contexts/AuthContext.js";
+import { useAuth } from "../../../../contexts/AuthContext.js";
 import { Loader2 } from "lucide-react";
 
 // This page redirects to the blog editor in create mode

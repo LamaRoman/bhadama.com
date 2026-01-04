@@ -3,7 +3,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { api } from "./utils/api.js";
+import { api } from "../utils/api.js";
 import HeroSection from "../components/home/HeroSection";
 import ListingSection from "../components/home/ListingSection";
 import SpecialOffersSection from "../components/home/SpecialOffersSection";

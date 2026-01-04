@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../utils/api.js";
+import { api } from "../../../utils/api.js";
 import UserBookings from "../../../components/UserBookings.jsx";
 
 export default function DashboardPage() {

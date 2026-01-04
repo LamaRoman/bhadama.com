@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "../../contexts/AuthContext.js";
-import { api } from "../../utils/api.js";
+import { useAuth } from "../../../contexts/AuthContext.js";
+import { api } from "../../../utils/api.js";
 import { toast, Toaster } from "react-hot-toast";
 import { Loader2, ArrowLeft, Shield, Check, AlertCircle, Calendar } from "lucide-react";
 import PaymentLogos from "../../public/listings/components/PaymentLogos.jsx";

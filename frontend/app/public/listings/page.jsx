@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "../../utils/api";
+import { api } from "../../../utils/api";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight, Loader2,
   Gift, TrendingUp, Sparkles, Tag, MapPin, Users, Star,

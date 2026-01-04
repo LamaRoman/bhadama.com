@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../utils/api.js";
+import { api } from "../../../../../utils/api.js";
 import { toast } from "react-hot-toast";
 import {
   Crown, Zap, Star, Rocket, Loader2,

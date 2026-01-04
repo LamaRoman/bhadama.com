@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useAuth } from "../../../../contexts/AuthContext";
+import { useAuth } from "../../../../../contexts/AuthContext";
 import ListingForm from "../../../dashboard/components/ListingForm";
 
 export default function EditListingPage() {

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "../app/utils/api.js";
+import { api } from "../utils/api.js";
 
 export default function UserBookings({ bookings, setBookings }) {
   const [selectedBooking, setSelectedBooking] = useState(null);

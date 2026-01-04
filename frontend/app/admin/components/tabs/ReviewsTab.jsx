@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 import { StatusBadge, LoadingSpinner, EmptyState, ActionButton, StarRating, formatDate } from "../shared";
 import { Star, Search, Check, X, Eye } from "lucide-react";
 import { toast } from "react-hot-toast";

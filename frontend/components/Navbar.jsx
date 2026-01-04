@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { useAuth } from "../app/contexts/AuthContext.js";
+import { useAuth } from "../contexts/AuthContext.js";
 
 export default function Navbar() {
   const { user, logout } = useAuth();

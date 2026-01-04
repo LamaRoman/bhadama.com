@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "../../utils/api.js";
-import { useAuth } from "../../contexts/AuthContext.js";
+import { api } from "../../../utils/api.js";
+import { useAuth } from "../../../contexts/AuthContext.js";
 import {
   ArrowLeft, Calendar, Clock, Heart, MessageCircle, Share2,
   Bookmark, Eye, User, ChevronRight, Loader2, Send,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 import {
   StatCard, StatusBadge, LoadingSpinner,
   formatCurrency, formatNumber, formatDate

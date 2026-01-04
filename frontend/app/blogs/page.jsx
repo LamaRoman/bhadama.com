@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "../contexts/AuthContext.js";
-import { api } from "../utils/api.js";
+import { useAuth } from "../../contexts/AuthContext.js";
+import { api } from "../../utils/api.js";
 import { 
   Search, Filter, Clock, Heart, MessageCircle, 
   ChevronRight, TrendingUp, Tag, User, Calendar,

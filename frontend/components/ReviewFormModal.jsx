@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { api } from "../app/utils/api.js";
+import { api } from "../utils/api.js";
 import { toast } from "react-hot-toast";
 
 export default function ReviewFormModal({

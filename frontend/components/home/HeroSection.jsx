@@ -4,7 +4,7 @@
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "../../app/utils/api.js";
+import { api } from "../../utils/api.js";
 import { Gift, TrendingUp, Sparkles, Tag, X, Search, Loader2 } from "lucide-react";
 import {
   hasTieredDiscounts,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../utils/api";
+import { api } from "../../../../utils/api";
 import { toast, Toaster } from "react-hot-toast";
 import {
   ArrowLeft, Save, Trash2, Eye, Upload, X, Plus,

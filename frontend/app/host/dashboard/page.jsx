@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/app/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { api } from "@/app/utils/api";
+import { api } from "@/utils/api";
 import { toast, Toaster } from "react-hot-toast";
 import { 
   RefreshCw, BarChart3, Building, Star, Calendar, 

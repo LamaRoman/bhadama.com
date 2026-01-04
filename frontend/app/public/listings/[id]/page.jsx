@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth } from "../../../contexts/AuthContext.js";
+import { useAuth } from "../../../../contexts/AuthContext.js";
 import { toast, Toaster } from "react-hot-toast";
 
 // Import modular components from local components folder

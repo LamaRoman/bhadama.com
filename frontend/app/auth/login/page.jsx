@@ -1,8 +1,8 @@
 "use client";
 
-import { api } from "../../utils/api.js";
+import { api } from "../../../utils/api.js";
 import { useState, useEffect, Suspense } from "react";
-import { useAuth } from "../../contexts/AuthContext.js";
+import { useAuth } from "../../../contexts/AuthContext.js";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SocialLoginButtons from "../../../components/SocialLoginButtons";

@@ -3,8 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "../../../contexts/AuthContext.js";
-import { api } from "../../../utils/api.js";
+import { useAuth } from "../../../../contexts/AuthContext.js";
+import { api } from "../../../../utils/api.js";
 import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
 
 function HostRegisterContent() {

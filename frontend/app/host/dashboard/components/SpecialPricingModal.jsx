@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 import { toast } from "react-hot-toast";
 import { X, Calendar, DollarSign, Plus, Trash2, Tag, Info } from "lucide-react";
 

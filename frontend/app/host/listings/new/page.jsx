@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../utils/api.js";
+import { api } from "../../../../utils/api.js";
 
 // Predefined amenities
 const AMENITIES = [
