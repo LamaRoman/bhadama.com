@@ -8,50 +8,8 @@ import { prisma } from "../config/prisma.js";
 // @desc    Get all reviews for host
 // @route   GET /api/host/reviews
 // @access  Private/Host
-
-// @desc    Get review statistics for a listing
-// @route   GET /api/publicListings/:id/reviews/stats
-// @access  Public
-// @desc    Get approved reviews for a listing (public)
-// @route   GET /api/publicListings/:id/reviews
-// @access  Public
-export const getPublicListingReviews = asyncHandler(async (req, res) => {
-  const listingId = parseInt(req.params.id);
-
-  if (isNaN(listingId)) {
-    res.status(400);
-    throw new Error("Invalid listing ID");
-  }
-
-  const reviews = await getListingReviews(listingId);
-  const stats = await calculateReviewStats(listingId);
-
-  res.json({
-    success: true,
-    reviews,
-    stats
-  });
-});
-
-
-export const getPublicReviewStats = asyncHandler(async (req, res) => {
-  const listingId = parseInt(req.params.id);
-
-  if (isNaN(listingId)) {
-    res.status(400);
-    throw new Error("Invalid listing ID");
-  }
-
-  const stats = await calculateReviewStats(listingId);
-
-  res.json({
-    success: true,
-    stats
-  });
-});
-
 export const getHostReviews = asyncHandler(async (req, res) => {
-  const hostId = req.user.userId;
+  const hostId = Number(req.user.userId); // Add Number() conversion
 
   const reviews = await prisma.review.findMany({
     where: {
@@ -76,12 +34,11 @@ export const getHostReviews = asyncHandler(async (req, res) => {
   });
 });
 
-
 // @desc    Get review statistics
 // @route   GET /api/host/reviews/stats
 // @access  Private/Host
 export const getReviewStats = asyncHandler(async (req, res) => {
-  const hostId = req.user.id;
+  const hostId = Number(req.user.userId); // Changed from req.user.id and added Number()
 
   const reviews = await prisma.review.findMany({
     where: {
@@ -105,15 +62,9 @@ export const getReviewStats = asyncHandler(async (req, res) => {
   });
 });
 
-
 // @desc    Submit reply to a review
 // @route   POST /api/host/reviews/:id/reply
 // @access  Private/Host
-// In hostReviewController.js, update submitReviewReply:
-
-// In hostReviewController.js, update submitReviewReply:
-// Add this complete function to your hostReviewController.js
-
 export const submitReviewReply = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { response } = req.body;
@@ -123,8 +74,8 @@ export const submitReviewReply = asyncHandler(async (req, res) => {
   console.log('🔍 Response text:', response);
   console.log('🔍 Full req.user:', req.user);
   
-  // Get host ID from authenticated user
-  const hostId = req.user?.userId;
+  // Get host ID from authenticated user - Add Number() conversion
+  const hostId = Number(req.user?.userId);
   
   if (!hostId) {
     console.error('❌ No userId found in req.user:', req.user);
@@ -209,6 +160,45 @@ export const submitReviewReply = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get approved reviews for a listing (public)
+// @route   GET /api/publicListings/:id/reviews
+// @access  Public
+export const getPublicListingReviews = asyncHandler(async (req, res) => {
+  const listingId = parseInt(req.params.id);
+
+  if (isNaN(listingId)) {
+    res.status(400);
+    throw new Error("Invalid listing ID");
+  }
+
+  const reviews = await getListingReviews(listingId);
+  const stats = await calculateReviewStats(listingId);
+
+  res.json({
+    success: true,
+    reviews,
+    stats
+  });
+});
+
+// @desc    Get review statistics for a listing
+// @route   GET /api/publicListings/:id/reviews/stats
+// @access  Public
+export const getPublicReviewStats = asyncHandler(async (req, res) => {
+  const listingId = parseInt(req.params.id);
+
+  if (isNaN(listingId)) {
+    res.status(400);
+    throw new Error("Invalid listing ID");
+  }
+
+  const stats = await calculateReviewStats(listingId);
+
+  res.json({
+    success: true,
+    stats
+  });
+});
 
 // @desc    Flag review for removal
 // @route   POST /api/host/reviews/:id/flag
