@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext.js";
 import { api } from "../../utils/api.js";
@@ -148,6 +148,7 @@ const BlogCard = ({ blog, featured = false, onBlogClick }) => {
 
 export default function BlogsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   
   // State
@@ -158,22 +159,12 @@ export default function BlogsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [apiError, setApiError] = useState(null);
   
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [sort, setSort] = useState("newest");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [category, setCategory] = useState(searchParams.get("category") || "all");
+  const [sort, setSort] = useState(searchParams.get("sort") || "newest");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
-
-  // Read URL params on mount only (client-side)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      setSearch(params.get("search") || "");
-      setCategory(params.get("category") || "all");
-      setSort(params.get("sort") || "newest");
-    }
-  }, []);
 
   const fetchBlogs = async (pageNum = 1, append = false) => {
     try {

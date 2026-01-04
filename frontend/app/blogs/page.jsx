@@ -1,11 +1,6 @@
 import { Suspense } from "react";
 import BlogsContent from "./BlogsContent";
 
-// Force this page to be completely dynamic
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const runtime = 'nodejs';
-
 export default function BlogsPage() {
   return (
     <Suspense fallback={
