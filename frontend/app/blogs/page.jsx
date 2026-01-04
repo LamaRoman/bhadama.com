@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import BlogsContent from "./BlogsContent";
 
+export const dynamic = 'force-dynamic'; // Add this line
+
 export default function BlogsPage() {
   return (
     <Suspense fallback={
