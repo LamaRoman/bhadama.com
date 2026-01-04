@@ -6,9 +6,8 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext.js";
 import { api } from "../../utils/api.js";
 import { 
-  Search, Filter, Clock, Heart, MessageCircle, 
-  ChevronRight, TrendingUp, Tag, User, Calendar,
-  Loader2, BookOpen, LogIn, PenLine
+  Search, Clock, Heart, MessageCircle, ChevronRight, 
+  TrendingUp, Tag, Loader2, BookOpen, LogIn, PenLine
 } from "lucide-react";
 
 // Blog categories with labels and colors
@@ -44,18 +43,15 @@ const getCategoryLabel = (category) => {
   return cat?.label || category;
 };
 
-// Blog Card Component
-const BlogCard = ({ blog, featured = false }) => {
-  const router = useRouter();
-  
+// BlogCard Component (FIXED - uses useRouter from parent scope)
+const BlogCard = ({ blog, featured = false, onBlogClick }) => {
   return (
     <article 
-      onClick={() => router.push(`/blogs/${blog.slug}`)}
+      onClick={() => onBlogClick(blog.slug)}
       className={`group cursor-pointer bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${
         featured ? "md:col-span-2 md:flex" : ""
       }`}
     >
-      {/* Image */}
       <div className={`relative overflow-hidden ${featured ? "md:w-1/2" : "aspect-[16/10]"}`}>
         {blog.coverImage ? (
           <img
@@ -64,6 +60,7 @@ const BlogCard = ({ blog, featured = false }) => {
             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${
               featured ? "md:h-full h-48" : ""
             }`}
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
@@ -71,21 +68,17 @@ const BlogCard = ({ blog, featured = false }) => {
           </div>
         )}
         
-        {/* Category Badge */}
         <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold ${getCategoryStyle(blog.category)}`}>
           {getCategoryLabel(blog.category)}
         </span>
         
-        {/* Reading Time */}
         <span className="absolute bottom-4 right-4 px-3 py-1 bg-black/60 text-white rounded-full text-xs font-medium flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          {blog.readingTime} min read
+          {blog.readingTime || 5} min read
         </span>
       </div>
       
-      {/* Content */}
       <div className={`p-6 ${featured ? "md:w-1/2 md:flex md:flex-col md:justify-center" : ""}`}>
-        {/* Author & Date */}
         <div className="flex items-center gap-3 mb-3">
           <div className="flex items-center gap-2">
             {blog.author?.profilePhoto ? (
@@ -93,37 +86,35 @@ const BlogCard = ({ blog, featured = false }) => {
                 src={blog.author.profilePhoto} 
                 alt={blog.author.name}
                 className="w-8 h-8 rounded-full object-cover"
+                loading="lazy"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">
                 {blog.author?.name?.charAt(0) || "?"}
               </div>
             )}
-            <span className="text-sm font-medium text-gray-700">{blog.author?.name}</span>
+            <span className="text-sm font-medium text-gray-700">{blog.author?.name || "Unknown"}</span>
           </div>
           <span className="text-gray-300">•</span>
           <span className="text-sm text-gray-500">
-            {new Date(blog.publishedAt).toLocaleDateString("en-US", {
+            {blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
               year: "numeric"
-            })}
+            }) : "N/A"}
           </span>
         </div>
         
-        {/* Title */}
         <h3 className={`font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-2 ${
           featured ? "text-2xl" : "text-lg"
         }`}>
           {blog.title}
         </h3>
         
-        {/* Excerpt */}
         <p className={`text-gray-600 line-clamp-2 mb-4 ${featured ? "text-base" : "text-sm"}`}>
-          {blog.excerpt}
+          {blog.excerpt || "No description available."}
         </p>
         
-        {/* Tags */}
         {blog.tags && blog.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {blog.tags.slice(0, 3).map((tag, index) => (
@@ -134,7 +125,6 @@ const BlogCard = ({ blog, featured = false }) => {
           </div>
         )}
         
-        {/* Stats */}
         <div className="flex items-center gap-4 text-sm text-gray-500">
           <span className="flex items-center gap-1">
             <Heart className="w-4 h-4" />
@@ -147,7 +137,7 @@ const BlogCard = ({ blog, featured = false }) => {
           {blog.viewCount > 0 && (
             <span className="flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
-              {blog.viewCount} views
+              {blog.viewCount.toLocaleString()} views
             </span>
           )}
         </div>
@@ -161,6 +151,7 @@ export default function BlogsContent() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   
+  // State
   const [blogs, setBlogs] = useState([]);
   const [featuredBlogs, setFeaturedBlogs] = useState([]);
   const [popularTags, setPopularTags] = useState([]);
@@ -168,7 +159,6 @@ export default function BlogsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [apiError, setApiError] = useState(null);
   
-  // Filters
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [category, setCategory] = useState(searchParams.get("category") || "all");
   const [sort, setSort] = useState(searchParams.get("sort") || "newest");
@@ -176,30 +166,25 @@ export default function BlogsContent() {
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
 
-  // Fetch blogs
   const fetchBlogs = async (pageNum = 1, append = false) => {
     try {
       if (pageNum === 1) setLoading(true);
       else setLoadingMore(true);
       setApiError(null);
       
-      const params = new URLSearchParams();
-      params.set("page", pageNum.toString());
-      params.set("limit", "12");
-      params.set("sort", sort);
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: "12",
+        sort
+      });
       
-      if (category && category !== "all") {
-        params.set("category", category);
-      }
-      if (search) {
-        params.set("search", search);
-      }
+      if (category !== "all") params.set("category", category);
+      if (search) params.set("search", search);
       
       const data = await api(`/api/blogs?${params.toString()}`);
       
       if (data.error) {
         setApiError(data.error);
-        console.error("API Error:", data.error);
         return;
       }
       
@@ -221,80 +206,68 @@ export default function BlogsContent() {
     }
   };
 
-  // Fetch featured blogs
   const fetchFeatured = async () => {
     try {
       const data = await api("/api/blogs/featured?limit=3");
-      if (!data.error) {
-        setFeaturedBlogs(data.blogs || []);
-      }
+      if (!data.error) setFeaturedBlogs(data.blogs || []);
     } catch (error) {
       console.error("Failed to fetch featured:", error);
     }
   };
 
-  // Fetch popular tags
   const fetchTags = async () => {
     try {
       const data = await api("/api/blogs/tags?limit=15");
-      if (!data.error) {
-        setPopularTags(data.tags || []);
-      }
+      if (!data.error) setPopularTags(data.tags || []);
     } catch (error) {
       console.error("Failed to fetch tags:", error);
     }
   };
 
-  // Initial load
+  // Effects
   useEffect(() => {
     fetchFeatured();
     fetchTags();
   }, []);
 
-  // Fetch when filters change
   useEffect(() => {
     setPage(1);
     fetchBlogs(1, false);
-  }, [category, sort, search]);
+  }, [search, category, sort]);
 
-  // Handle search
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (category !== "all") params.set("category", category);
+    if (sort !== "newest") params.set("sort", sort);
+    router.replace(`/blogs?${params.toString()}`, { scroll: false });
+  }, [search, category, sort, router]);
+
   const handleSearch = (e) => {
     e.preventDefault();
-    setPage(1);
     fetchBlogs(1, false);
   };
 
-  // Load more
   const loadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
     fetchBlogs(nextPage, true);
   };
 
-  // Update URL when filters change
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (category !== "all") params.set("category", category);
-    if (sort !== "newest") params.set("sort", sort);
-    
-    router.replace(`/blogs?${params.toString()}`, { scroll: false });
-  }, [search, category, sort, router]);
+  const handleBlogClick = (slug) => {
+    router.push(`/blogs/${slug}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-6 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Blog & Stories
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog & Stories</h1>
             <p className="text-xl text-blue-100 mb-8">
-              Tips, guides, and stories from our hosting community. Learn from experiences and get inspired for your next event.
+              Tips, guides, and stories from our hosting community. Learn from experiences and get inspired.
             </p>
-            
-            {/* Search Bar */}
             <form onSubmit={handleSearch} className="relative max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -302,11 +275,11 @@ export default function BlogsContent() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search articles..."
-                className="w-full pl-12 pr-4 py-4 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-white/30"
+                className="w-full pl-12 pr-12 py-4 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-white/30 bg-white/80"
               />
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all duration-200"
               >
                 Search
               </button>
@@ -315,8 +288,7 @@ export default function BlogsContent() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Featured Blogs */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         {featuredBlogs.length > 0 && !search && category === "all" && (
           <section className="mb-12">
             <div className="flex items-center justify-between mb-6">
@@ -325,26 +297,23 @@ export default function BlogsContent() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {featuredBlogs.map((blog, index) => (
-                <BlogCard key={blog.id} blog={blog} featured={index === 0} />
+                <BlogCard key={blog.id} blog={blog} featured={index === 0} onBlogClick={handleBlogClick} />
               ))}
             </div>
           </section>
         )}
 
-        {/* Filters & Content */}
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Main Content */}
           <div className="flex-1">
-            {/* Category Tabs */}
             <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
                   onClick={() => setCategory(cat.value)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
                     category === cat.value
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:shadow-md"
                   }`}
                 >
                   {cat.label}
@@ -352,15 +321,14 @@ export default function BlogsContent() {
               ))}
             </div>
 
-            {/* Sort & Results Count */}
             <div className="flex items-center justify-between mb-6">
               <p className="text-sm text-gray-600">
-                {total} {total === 1 ? "article" : "articles"} found
+                {total.toLocaleString()} {total === 1 ? "article" : "articles"} found
               </p>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -369,35 +337,32 @@ export default function BlogsContent() {
               </select>
             </div>
 
-            {/* Loading State */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin mr-2" />
+                <span className="text-lg text-gray-600">Loading articles...</span>
               </div>
             ) : apiError ? (
               <div className="text-center py-20">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6 p-4">
+                  <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h3>
-                <p className="text-gray-600 mb-2">{apiError}</p>
-                <p className="text-sm text-gray-500 mb-6">
-                  Make sure the backend server is running and the blog routes are configured.
-                </p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Connection Error</h3>
+                <p className="text-gray-600 mb-4 max-w-md mx-auto">{apiError}</p>
                 <button
                   onClick={() => fetchBlogs(1, false)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all duration-200 shadow-lg"
                 >
                   Try Again
                 </button>
               </div>
             ) : blogs.length === 0 ? (
               <div className="text-center py-20">
-                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No articles found</h3>
-                <p className="text-gray-600 mb-6">
+                <BookOpen className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">No articles found</h3>
+                <p className="text-gray-600 mb-8 text-lg max-w-md mx-auto">
                   {search ? `No results for "${search}"` : "No articles in this category yet"}
                 </p>
                 <button
@@ -405,33 +370,31 @@ export default function BlogsContent() {
                     setSearch("");
                     setCategory("all");
                   }}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all duration-200 shadow-lg"
                 >
                   View All Articles
                 </button>
               </div>
             ) : (
               <>
-                {/* Blog Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {blogs.map((blog) => (
-                    <BlogCard key={blog.id} blog={blog} />
+                    <BlogCard key={blog.id} blog={blog} onBlogClick={handleBlogClick} />
                   ))}
                 </div>
 
-                {/* Load More */}
                 {hasMore && (
-                  <div className="text-center mt-10">
+                  <div className="text-center mt-12">
                     <button
                       onClick={loadMore}
                       disabled={loadingMore}
-                      className="px-8 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      className="px-10 py-4 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-2xl font-semibold text-lg hover:from-blue-50 hover:to-blue-100 hover:text-blue-700 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loadingMore ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Loading...
-                        </span>
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
+                          Loading more articles...
+                        </>
                       ) : (
                         "Load More Articles"
                       )}
@@ -442,75 +405,74 @@ export default function BlogsContent() {
             )}
           </div>
 
-          {/* Sidebar */}
-          <aside className="lg:w-80 space-y-8">
-            {/* Popular Tags */}
+          <aside className="lg:w-80 xl:w-96 space-y-6 sticky top-24 self-start">
             {popularTags.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Tag className="w-5 h-5" />
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-2">
+                  <Tag className="w-6 h-6" />
                   Popular Topics
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {popularTags.map((tag) => (
+                  {popularTags.map((tagObj) => (
                     <button
-                      key={tag.tag}
-                      onClick={() => setSearch(tag.tag)}
-                      className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                      key={tagObj.tag}
+                      onClick={() => setSearch(tagObj.tag)}
+                      className="px-4 py-2 bg-gray-100 hover:bg-blue-100 hover:text-blue-700 text-sm font-medium rounded-full transition-all duration-200 shadow-sm border hover:border-blue-200"
                     >
-                      #{tag.tag}
-                      <span className="ml-1 text-gray-400 text-xs">({tag.count})</span>
+                      #{tagObj.tag}
+                      <span className="ml-1 text-xs bg-white/60 px-1.5 py-0.5 rounded-full">
+                        ({tagObj.count})
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Write a Blog CTA */}
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white">
-              <h3 className="font-bold text-xl mb-2">Share Your Story</h3>
-              <p className="text-blue-100 text-sm mb-4">
-                Have an experience to share? Write a blog and inspire others!
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-8 text-white shadow-2xl">
+              <h3 className="font-bold text-2xl mb-3">Share Your Story</h3>
+              <p className="text-blue-100 mb-6 leading-relaxed">
+                Have an experience to share? Write a blog and inspire thousands!
               </p>
               {authLoading ? (
-                <div className="inline-block px-4 py-2 bg-white/20 rounded-lg">
+                <div className="inline-flex items-center gap-2 px-6 py-3 bg-white/20 backdrop-blur-sm rounded-xl">
                   <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Loading...</span>
                 </div>
               ) : user ? (
                 <Link
                   href={user.role === "HOST" ? "/host/blogs/new" : "/users/blogs/new"}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 backdrop-blur-sm"
                 >
-                  <PenLine className="w-4 h-4" />
+                  <PenLine className="w-5 h-5" />
                   Start Writing
                 </Link>
               ) : (
                 <Link
                   href="/auth/login?redirect=/blogs"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 backdrop-blur-sm"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-5 h-5" />
                   Login to Write
                 </Link>
               )}
             </div>
 
-            {/* Categories List */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Categories</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="font-bold text-xl text-gray-900 mb-6">Categories</h3>
               <div className="space-y-2">
                 {CATEGORIES.filter(c => c.value !== "all").map((cat) => (
                   <button
                     key={cat.value}
                     onClick={() => setCategory(cat.value)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:shadow-md ${
                       category === cat.value
-                        ? "bg-blue-50 text-blue-700"
-                        : "hover:bg-gray-50 text-gray-700"
+                        ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                        : "hover:bg-blue-50 text-gray-700 border border-transparent hover:border-blue-200"
                     }`}
                   >
                     <span>{cat.label}</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className={`w-5 h-5 ${category === cat.value ? 'text-white' : 'text-gray-400'}`} />
                   </button>
                 ))}
               </div>
