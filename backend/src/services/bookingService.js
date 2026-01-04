@@ -6,15 +6,23 @@ import { Decimal } from "@prisma/client/runtime/library"; // Add this import
 // ... other imports
 
 export async function createBooking(bookingData) {
-  const { userId, listingId, bookingDate, startTime, endTime, guests, specialRequests } = bookingData;
+  const {
+    userId,
+    listingId,
+    bookingDate,
+    startTime,
+    endTime,
+    guests,
+    specialRequests,
+  } = bookingData;
 
   // 1. Validate listing exists
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     include: {
       host: true,
-      images: true
-    }
+      images: true,
+    },
   });
 
   if (!listing) {
@@ -22,7 +30,12 @@ export async function createBooking(bookingData) {
   }
 
   // 2. Check time slot availability
-  const hasConflict = await checkTimeConflict(listingId, bookingDate, startTime, endTime);
+  const hasConflict = await checkTimeConflict(
+    listingId,
+    bookingDate,
+    startTime,
+    endTime
+  );
   if (hasConflict) {
     throw new Error("Time slot not available");
   }
@@ -40,12 +53,12 @@ export async function createBooking(bookingData) {
   const startMinutes = parseTime(startTime);
   const endMinutes = parseTime(endTime);
   const duration = (endMinutes - startMinutes) / 60; // Convert minutes to hours
-  
+
   // Validate duration
   if (duration <= 0) {
     throw new Error("End time must be after start time");
   }
-  
+
   if (duration < listing.minHours) {
     throw new Error(`Minimum booking duration is ${listing.minHours} hours`);
   }
@@ -53,24 +66,32 @@ export async function createBooking(bookingData) {
   // 5. Calculate prices and convert to Decimal
   const hourlyRate = new Decimal(listing.hourlyRate || 0); // Fixed: use listing.hourlyRate, not listingId.hourlyRate
   const basePrice = hourlyRate.times(new Decimal(duration));
-  
+
   // Calculate extra guest charges
   const includedGuests = listing.includedGuests || 10;
   const extraGuestCharge = new Decimal(listing.extraGuestCharge || 0);
   let extraGuestPrice = new Decimal(0);
-  
+
   if (extraGuestCharge.greaterThan(0) && guests > includedGuests) {
     const extraGuests = guests - includedGuests;
-    extraGuestPrice = extraGuestCharge.times(new Decimal(extraGuests)).times(new Decimal(duration));
+    extraGuestPrice = extraGuestCharge
+      .times(new Decimal(extraGuests))
+      .times(new Decimal(duration));
   }
 
   // Calculate fees
-  const serviceFee = basePrice.times(new Decimal(0.10));
-  const tax = basePrice.plus(extraGuestPrice).plus(serviceFee).times(new Decimal(0.08));
+  const serviceFee = basePrice.times(new Decimal(0.1));
+  const tax = basePrice
+    .plus(extraGuestPrice)
+    .plus(serviceFee)
+    .times(new Decimal(0.08));
   const totalPrice = basePrice.plus(extraGuestPrice).plus(serviceFee).plus(tax);
 
   // 6. Generate booking number
-  const bookingNumber = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  const bookingNumber = `BK-${Date.now()}-${Math.random()
+    .toString(36)
+    .substr(2, 9)
+    .toUpperCase()}`;
 
   // 7. Create booking with Decimal values
   const booking = await prisma.booking.create({
@@ -102,8 +123,8 @@ export async function createBooking(bookingData) {
         },
       },
       user: {
-        select: { id: true, name: true, email: true }
-      }
+        select: { id: true, name: true, email: true },
+      },
     },
   });
 
@@ -150,19 +171,19 @@ async function checkTimeConflict(listingId, bookingDate, startTime, endTime) {
  */
 // FIX: Update parseTime function to handle invalid time strings
 function parseTime(timeStr) {
-  if (!timeStr || !timeStr.includes(':')) {
-    console.error('Invalid time string:', timeStr);
+  if (!timeStr || !timeStr.includes(":")) {
+    console.error("Invalid time string:", timeStr);
     return 0; // Return 0 instead of NaN
   }
-  
+
   const [hours, minutes] = timeStr.split(":").map(Number);
-  
+
   // Check if parsing resulted in valid numbers
   if (isNaN(hours) || isNaN(minutes)) {
-    console.error('Failed to parse time:', timeStr);
+    console.error("Failed to parse time:", timeStr);
     return 0;
   }
-  
+
   return hours * 60 + minutes;
 }
 /**
@@ -213,9 +234,9 @@ export async function getAvailableTimeSlots(listingId, date) {
   for (let time = startMinutes; time < endMinutes; time += 60) {
     const slotStart = formatTime(time);
     const slotEnd = formatTime(Math.min(time + 60, endMinutes));
-    
+
     // Check if slot is available
-    const isAvailable = !bookings.some(booking => {
+    const isAvailable = !bookings.some((booking) => {
       const bookingStart = parseTime(booking.startTime);
       const bookingEnd = parseTime(booking.endTime);
       return time >= bookingStart && time < bookingEnd;
@@ -267,7 +288,8 @@ export async function getHostBookings(hostId) {
   return prisma.booking.findMany({
     where: {
       listing: {
-        hostId:Number(hostId)},
+        hostId: Number(hostId),
+      },
     },
     include: {
       listing: {
