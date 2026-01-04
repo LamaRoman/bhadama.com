@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   description: "Discover and book amazing yards for events, parties, and gatherings",
 };
 
+// Add these three lines to make all pages dynamic
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
+
 export default function RootLayout({
   children,
 }: Readonly<{
