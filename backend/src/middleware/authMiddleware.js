@@ -4,7 +4,7 @@ import { ROLE_HIERARCHY, ADMIN_HIERARCHY } from "../config/roles.js";
 
 export const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
-
+  
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -14,16 +14,15 @@ export const authenticate = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    
     // Set user object
     req.user = {
-      id: decoded.userId,           // BigInt for Prisma queries
-      userId: decoded.userId,       // BigInt for Prisma queries
+      id: Number(decoded.userId),        // ✅ Convert to Number
+      userId: Number(decoded.userId),    // ✅ CONVERT TO NUMBER HERE TOO!
       email: decoded.email,
       role: decoded.role,
       adminRole: decoded.adminRole || null,
     };
-    
+
     next();
   } catch (error) {
     console.error('Token verification failed:', error.message);
