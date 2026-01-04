@@ -7,16 +7,17 @@ import { authenticate } from "../middleware/authMiddleware.js";
 import { AdminRole } from "@prisma/client";
 
 const router = express.Router();
-// Helper function to generate JWT token
 
-// Add to your backend auth routes file
+// Add BigInt serialization support
 BigInt.prototype.toJSON = function() {
   return this.toString();
 };
+
+// Helper function to generate JWT token
 const generateToken = (user) => {
   return jwt.sign(
     {
-      userId: user.id.toString(),   // BigInt -> string
+      userId: user.id.toString(),
       email: user.email,
       role: user.role,
       adminRole: user.adminRole || null,
@@ -69,21 +70,26 @@ router.get(
 
 /* ==================== EMAIL/PASSWORD AUTH ==================== */
 
-
-
 // Register with email/password
 router.post("/register", async (req, res) => {
   try {
+    console.log("📥 Registration request received:", { 
+      email: req.body.email, 
+      role: req.body.role 
+    });
+
     const { name, email, password, role = "USER" } = req.body;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
+      console.log("❌ User already exists:", email);
       return res.status(400).json({ error: "Email already registered" });
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("🔐 Password hashed successfully");
 
     // Create user
     const user = await prisma.user.create({
@@ -94,27 +100,43 @@ router.post("/register", async (req, res) => {
         role: role === "HOST" ? "HOST" : "USER",
       },
     });
+    console.log("✅ User created in database:", { 
+      id: user.id.toString(), 
+      email: user.email,
+      role: user.role 
+    });
 
     // Generate JWT
     const token = generateToken(user);
+    console.log("🎫 JWT token generated");
 
-    // Send JSON response with stringified IDs
-    res.status(201).json({
+    // Prepare response
+    const responseData = {
       message: "Registration successful",
       token,
       user: {
-        id: user.id.toString(),   // BigInt -> string
+        id: user.id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
         profilePhoto: user.profilePhoto || null,
       },
-    });
-  } catch (error) {
-    console.error("Register error:", error);
+    };
 
-    // Include error message in dev/debug mode only
-    res.status(500).json({
+    console.log("📤 Sending response:", {
+      status: 201,
+      hasToken: !!responseData.token,
+      userId: responseData.user.id
+    });
+
+    // Send JSON response
+    return res.status(201).json(responseData);
+
+  } catch (error) {
+    console.error("❌ Register error:", error);
+    console.error("Error stack:", error.stack);
+
+    return res.status(500).json({
       error: "Registration failed",
       details: error instanceof Error ? error.message : String(error),
     });
@@ -160,11 +182,11 @@ router.post("/login", async (req, res) => {
       message: "Login successful",
       token,
       user: {
-        id: user.id,
+        id: user.id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
-        adminRole:user.adminRole,
+        adminRole: user.adminRole,
         profilePhoto: user.profilePhoto
       }
     });
@@ -297,7 +319,7 @@ router.get("/admin/users", authenticate, async (req, res) => {
     const { search, role, page = 1, limit = 20 } = req.query;
 
     const where = {
-      role: { in: ["USER", "HOST"] } // Only show USER and HOST, not ADMIN/MODERATOR
+      role: { in: ["USER", "HOST"] }
     };
     
     if (search) {
