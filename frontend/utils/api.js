@@ -28,7 +28,7 @@ export async function api(url, options = {}) {
   }
 
   try {
-    const res = await fetch(`http://localhost:5001${url}`, fetchOptions);
+    const res = await fetch(url, fetchOptions);
 
     // Handle no content
     if (res.status === 204) {
