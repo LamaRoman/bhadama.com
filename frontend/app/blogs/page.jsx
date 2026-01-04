@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext.js";
@@ -156,7 +156,8 @@ const BlogCard = ({ blog, featured = false }) => {
   );
 };
 
-export default function BlogsPage() {
+// Separate component that uses useSearchParams
+function BlogsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
@@ -509,5 +510,21 @@ export default function BlogsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function BlogsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading blogs...</p>
+        </div>
+      </div>
+    }>
+      <BlogsContent />
+    </Suspense>
   );
 }
