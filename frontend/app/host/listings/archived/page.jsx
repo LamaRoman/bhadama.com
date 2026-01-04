@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../../../../contexts/AuthContext";
-import { api } from "../../../../utils/api";
+import { useAuth } from "../../../contexts/AuthContext.js";
+import { api } from "../../../utils/api.js";
 import { toast, Toaster } from "react-hot-toast";
 import {
   Loader2,
