@@ -28,8 +28,13 @@ const app = express();
 
 // 1. CORS
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: [
+    'http://localhost:3000',
+    'https://mybigyard.com',
+    'https://www.mybigyard.com'
+  ],
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
 // 2. Body parser
