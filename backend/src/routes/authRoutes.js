@@ -7,15 +7,14 @@ import { authenticate } from "../middleware/authMiddleware.js";
 import { AdminRole } from "@prisma/client";
 
 const router = express.Router();
-
 // Helper function to generate JWT token
 const generateToken = (user) => {
   return jwt.sign(
-    { 
-      userId: user.id, 
-      email: user.email, 
+    {
+      userId: user.id.toString(),   // BigInt -> string
+      email: user.email,
       role: user.role,
-      adminRole: user.adminRole || null 
+      adminRole: user.adminRole || null,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -65,20 +64,10 @@ router.get(
 
 /* ==================== EMAIL/PASSWORD AUTH ==================== */
 
+
+
 // Register with email/password
 router.post("/register", async (req, res) => {
-  const generateToken = (user) => {
-  return jwt.sign(
-    {
-      userId: user.id.toString(),   // BigInt -> string
-      email: user.email,
-      role: user.role,
-      adminRole: user.adminRole || null,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-};
   try {
     const { name, email, password, role = "USER" } = req.body;
 
