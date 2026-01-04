@@ -1,5 +1,6 @@
 // frontend/app/blogs/page.jsx
-"use client"; // Make the page fully client-side
+"use client"; // this makes the page a client component
+export const dynamic = "force-dynamic"; // force Next.js to skip prerendering
 
 import BlogsContent from "./BlogsContent";
 
