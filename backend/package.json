@@ -40,7 +40,12 @@
     "nodemon": "^3.1.10",
     "prisma": "^6.19.1"
   },
+  "scripts":{
+    "seed:tiers":"node prisma/seeds/tierSeed.mjs",
+    "seed:data":"node prisma/seeds/seed-production.js",
+    "seed:all": "npm run seed:tiers && npm run seed:data"
+  },
   "prisma": {
-    "seed": "node prisma/seeds/tierSeed.cjs"
+    "seed": "node prisma/seeds/seed-production.js"
   }
 }
