@@ -4,7 +4,7 @@ import { uploadToS3 } from "../config/s3.js";
 export const uploadImages = async (req, res) => {
   try {
     const listingId = parseInt(req.params.id);
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No images uploaded" });
@@ -26,7 +26,7 @@ export const uploadImages = async (req, res) => {
         data: {
           listingId,
           url: secure_url,
-          s3Key: key,      // store the S3 key for deletion later
+          s3Key: key,
           isCover,
         },
       });
@@ -43,8 +43,6 @@ export const uploadImages = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-
 
 // Helper function to generate slug
 const generateSlug = (title) => {
@@ -82,7 +80,7 @@ export const createListing = async (req, res) => {
       featured
     } = req.body;
     
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
 
     // Validate required fields from schema
     if (!title) {
@@ -190,7 +188,7 @@ export const createListing = async (req, res) => {
  */
 export const getHostListings = async (req, res) => {
   try {
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId);
 
     const listings = await prisma.listing.findMany({
       where: { hostId },
@@ -217,7 +215,7 @@ export const getHostListings = async (req, res) => {
 export const getListingById = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
 
     const listing = await prisma.listing.findFirst({
       where: { 
@@ -254,7 +252,7 @@ export const getListingById = async (req, res) => {
 export const updateListing = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
     const { 
       title, 
       description, 
@@ -294,7 +292,7 @@ export const updateListing = async (req, res) => {
         amenities,
         capacity: capacity ? parseInt(capacity) : null,
         operatingHours,
-        price: hourlyRate ? parseFloat(hourlyRate) : existing.price, // Update backward compat
+        price: hourlyRate ? parseFloat(hourlyRate) : existing.price,
       },
       include: {
         images: true,
@@ -322,7 +320,7 @@ export const updateListing = async (req, res) => {
 export const deleteListing = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
 
     // Check ownership
     const existing = await prisma.listing.findFirst({
@@ -352,7 +350,7 @@ export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const hostId = req.user.userId;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt
 
     // Check ownership
     const existing = await prisma.listing.findFirst({
@@ -401,7 +399,7 @@ export const setCoverImage = async (req, res) => {
 export const updateDiscounts = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostId = req.user.id;
+    const hostId = BigInt(req.user.userId); // Fixed: Convert to BigInt (was req.user.id)
     const { durationDiscounts, bonusHoursOffer } = req.body;
 
     // Verify ownership

@@ -14,13 +14,11 @@ export const authenticate = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Convert userId string to BigInt for Prisma queries
-    const userId = BigInt(decoded.userId);
     
     // Set user object
     req.user = {
-      id: userId,           // BigInt for Prisma queries
-      userId: userId,       // BigInt for Prisma queries
+      id: decoded.userId,           // BigInt for Prisma queries
+      userId: decoded.userId,       // BigInt for Prisma queries
       email: decoded.email,
       role: decoded.role,
       adminRole: decoded.adminRole || null,
