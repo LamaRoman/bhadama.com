@@ -1,35 +1,10 @@
 import * as bookingService from "../services/bookingService.js";
 import { prisma } from "../config/prisma.js";
+
 /**
  * Create a new booking
  * POST /api/bookings
  */
-
-export const completeExpiredBookings = async () => {
-  const now = new Date();
-
-  const bookings = await prisma.booking.findMany({
-    where: { status: "CONFIRMED" }
-  });
-
-  for (const booking of bookings) {
-    const endDateTime = new Date(booking.bookingDate);
-    const [h, m] = booking.endTime.split(":");
-    endDateTime.setHours(h, m, 0, 0);
-
-    if (endDateTime <= now) {
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: {
-          status: "COMPLETED",
-          completedAt: now
-        }
-      });
-    }
-  }
-};
-
-
 export const createBooking = async (req, res) => {
   try {
     const { listingId, userId, bookingDate, startTime, endTime, guests } = req.body;
@@ -118,6 +93,31 @@ export const createBooking = async (req, res) => {
     return res.status(500).json({ error: "Failed to create booking" });
   }
 };
+
+export const completeExpiredBookings = async () => {
+  const now = new Date();
+
+  const bookings = await prisma.booking.findMany({
+    where: { status: "CONFIRMED" }
+  });
+
+  for (const booking of bookings) {
+    const endDateTime = new Date(booking.bookingDate);
+    const [h, m] = booking.endTime.split(":");
+    endDateTime.setHours(h, m, 0, 0);
+
+    if (endDateTime <= now) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "COMPLETED",
+          completedAt: now
+        }
+      });
+    }
+  }
+};
+
 /**
  * Get available time slots for a listing
  * GET /api/bookings/availability/:listingId
@@ -149,12 +149,12 @@ export async function getAvailability(req, res) {
  */
 export async function getUserBookings(req, res) {
   try {
-    const userId = req.user.userId;
+    const userId = Number(req.user.userId); // Add Number() conversion
     console.log("Fetching bookings for user ID:", userId); // Debug log
 
     const bookings = await prisma.booking.findMany({
       where: { 
-        userId:userId // filter by the logged in user
+        userId: userId // filter by the logged in user
       },
       include: {
         listing: {
@@ -173,7 +173,9 @@ export async function getUserBookings(req, res) {
       },
       orderBy: { bookingDate: "desc" },
     });
-console.log("Found bookings:", bookings.length); // Debug log
+    
+    console.log("Found bookings:", bookings.length); // Debug log
+    
     const normalizedBookings = bookings.map(b => ({
       ...b,
       basePrice: Number(b.basePrice),
@@ -197,7 +199,7 @@ console.log("Found bookings:", bookings.length); // Debug log
  */
 export async function getHostBookings(req, res) {
   try {
-    const hostId = req.user.userId;
+    const hostId = Number(req.user.userId); // Add Number() conversion
     const bookings = await bookingService.getHostBookings(hostId);
 
     res.json(bookings);
@@ -213,7 +215,7 @@ export async function getHostBookings(req, res) {
  */
 export async function cancelBooking(req, res) {
   try {
-    const userId = req.user.userId;
+    const userId = Number(req.user.userId); // Add Number() conversion
     const bookingId = parseInt(req.params.id);
 
     const booking = await bookingService.cancelBooking(bookingId, userId);
