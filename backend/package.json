@@ -5,13 +5,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "dev": "nodemon src/app.js",
-  "build": "tsc",                            
-  "start": "node src/app.js",               
-  "prisma:generate": "prisma generate",
-  "prisma:migrate": "prisma migrate deploy"
-}
-,
+    "dev": "nodemon src/app.js",
+    "build": "tsc",
+    "start": "node src/app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
