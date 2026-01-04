@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Add BigInt serialization support
+function JSONStringifyWithBigInt(obj: any): string {
+  return JSON.stringify(obj, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  );
+}
+
 export async function GET(request: NextRequest) {
   return handleRequest(request);
 }
@@ -24,19 +31,13 @@ async function handleRequest(request: NextRequest) {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:5001';
     
-    // Get the path from the URL (e.g., /api/auth/register)
     const path = request.nextUrl.pathname;
-    
-    // Get query parameters
     const searchParams = request.nextUrl.searchParams.toString();
     const queryString = searchParams ? `?${searchParams}` : '';
-    
-    // Build the backend URL
     const url = `${backendUrl}${path}${queryString}`;
     
     console.log(`Proxying: ${request.method} ${url}`);
     
-    // Prepare request options
     const options: RequestInit = {
       method: request.method,
       headers: {
@@ -47,7 +48,6 @@ async function handleRequest(request: NextRequest) {
       },
     };
     
-    // Add body for POST, PUT, PATCH requests
     if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
       const body = await request.text();
       if (body) {
@@ -55,26 +55,32 @@ async function handleRequest(request: NextRequest) {
       }
     }
 
-    // Make the request to the backend
     const response = await fetch(url, options);
-
-    // Determine content type
     const contentType = response.headers.get('Content-Type');
 
     let data: any;
     if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Response text:', text);
+        return NextResponse.json(
+          { error: 'Invalid JSON response from server' },
+          { status: 500 }
+        );
+      }
     } else {
       data = await response.text();
     }
 
-    // Log backend errors for debugging
     if (!response.ok) {
       console.error(`Backend error: ${response.status}`, data);
     }
 
-    // Return response to the frontend
-    return new NextResponse(JSON.stringify(data), {
+    // Use custom stringify that handles BigInt
+    return new NextResponse(JSONStringifyWithBigInt(data), {
       status: response.status,
       headers: {
         'Content-Type': 'application/json',
@@ -84,7 +90,7 @@ async function handleRequest(request: NextRequest) {
   } catch (error) {
     console.error('Proxy error:', error);
     return NextResponse.json(
-      { error: 'Request failed' },
+      { error: 'Request failed', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
