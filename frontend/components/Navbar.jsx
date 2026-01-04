@@ -72,7 +72,7 @@ export default function Navbar() {
                 Sign In
               </Link>
               <Link
-                href="/auth/register"
+                href="/auth/register/user"
                 className="px-5 py-2.5 text-sm font-bold bg-gradient-to-r from-emerald-600 to-lime-500 text-white rounded-full hover:shadow-lg hover:shadow-emerald-200 transition-all duration-300 hover:scale-105 active:scale-95"
               >
                 Get Started
