@@ -8,6 +8,11 @@ import { AdminRole } from "@prisma/client";
 
 const router = express.Router();
 // Helper function to generate JWT token
+
+// Add to your backend auth routes file
+BigInt.prototype.toJSON = function() {
+  return this.toString();
+};
 const generateToken = (user) => {
   return jwt.sign(
     {
