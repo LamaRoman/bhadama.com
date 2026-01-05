@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
@@ -11,9 +11,14 @@ const COLORS = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444"];
 
 // Revenue Chart
 const RevenueChart = memo(({ monthlyData = [] }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const data = useMemo(() => {
     if (!monthlyData?.length) {
-      // Return placeholder data
       return [
         { month: "Jan", revenue: 0 },
         { month: "Feb", revenue: 0 },
@@ -32,8 +37,8 @@ const RevenueChart = memo(({ monthlyData = [] }) => {
         <h3 className="text-lg font-bold text-gray-900">Revenue Trend</h3>
         <TrendingUp className="w-5 h-5 text-gray-400" />
       </div>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
+      {mounted ? (
+        <ResponsiveContainer width="100%" height={256}>
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
@@ -51,7 +56,11 @@ const RevenueChart = memo(({ monthlyData = [] }) => {
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      ) : (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-pulse text-gray-400">Loading chart...</div>
+        </div>
+      )}
     </div>
   );
 });
@@ -59,8 +68,13 @@ RevenueChart.displayName = "RevenueChart";
 
 // Rating Distribution Chart
 const RatingDistributionChart = memo(({ reviewsByRating = {} }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const data = useMemo(() => {
-    // Default empty ratings if not provided
     const ratings = reviewsByRating || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
     
     return Object.entries(ratings)
@@ -76,9 +90,9 @@ const RatingDistributionChart = memo(({ reviewsByRating = {} }) => {
         <h3 className="text-lg font-bold text-gray-900">Rating Distribution</h3>
         <Star className="w-5 h-5 text-gray-400" />
       </div>
-      <div className="h-64">
-        {hasData ? (
-          <ResponsiveContainer width="100%" height="100%">
+      {mounted ? (
+        hasData ? (
+          <ResponsiveContainer width="100%" height={256}>
             <BarChart data={data} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis type="number" tick={{ fontSize: 12 }} />
@@ -90,14 +104,18 @@ const RatingDistributionChart = memo(({ reviewsByRating = {} }) => {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-400">
+          <div className="h-64 flex items-center justify-center text-gray-400">
             <div className="text-center">
               <Star className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p>No reviews yet</p>
             </div>
           </div>
-        )}
-      </div>
+        )
+      ) : (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-pulse text-gray-400">Loading chart...</div>
+        </div>
+      )}
     </div>
   );
 });
@@ -105,6 +123,12 @@ RatingDistributionChart.displayName = "RatingDistributionChart";
 
 // Bookings Chart
 const BookingsChart = memo(({ monthlyData = [] }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const data = useMemo(() => {
     if (!monthlyData?.length) {
       return [
@@ -125,8 +149,8 @@ const BookingsChart = memo(({ monthlyData = [] }) => {
         <h3 className="text-lg font-bold text-gray-900">Bookings Trend</h3>
         <TrendingUp className="w-5 h-5 text-gray-400" />
       </div>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
+      {mounted ? (
+        <ResponsiveContainer width="100%" height={256}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
@@ -137,7 +161,11 @@ const BookingsChart = memo(({ monthlyData = [] }) => {
             <Bar dataKey="bookings" fill="#3b82f6" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      ) : (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-pulse text-gray-400">Loading chart...</div>
+        </div>
+      )}
     </div>
   );
 });

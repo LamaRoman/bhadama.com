@@ -2,7 +2,6 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { prisma } from "./prisma.js";
 
-
 // Google Strategy
 passport.use(
   new GoogleStrategy(
@@ -10,7 +9,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: `${process.env.BACKEND_URL}/api/auth/google/callback`,
-      passReqToCallback: true, // Pass request to callback to access state
+      passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
@@ -19,7 +18,7 @@ passport.use(
         const profilePhoto = profile.photos?.[0]?.value;
         const googleId = profile.id;
         
-        // Get role from state parameter (passed from frontend)
+        // Get role from state parameter
         const role = req.query.state || "USER";
 
         if (!email) {
@@ -48,7 +47,6 @@ passport.use(
               }
             });
           }
-          // Note: We don't change existing user's role
         } else {
           // New user - create with the role from state
           user = await prisma.user.create({
@@ -58,8 +56,8 @@ passport.use(
               googleId,
               profilePhoto,
               emailVerified: true,
-              role: role === "HOST" ? "HOST" : "USER",
-              password: null
+              role: role === "HOST" ? "HOST" : "USER"
+              // password is optional - don't include it
             }
           });
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -8,8 +8,12 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
+  const hasProcessed = useRef(false); // ✅ Prevent double execution
 
   useEffect(() => {
+    // ✅ Prevent running multiple times
+    if (hasProcessed.current) return;
+
     const token = searchParams.get("token");
     const userId = searchParams.get("userId");
     const name = searchParams.get("name");
@@ -24,6 +28,8 @@ function CallbackContent() {
     }
 
     if (token && userId) {
+      hasProcessed.current = true; // ✅ Mark as processed
+
       // Create user object
       const user = {
         id: parseInt(userId),
@@ -36,23 +42,12 @@ function CallbackContent() {
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
 
-      // Update auth context
+      // Update auth context (don't redirect here, login will handle it)
       login(user, token);
-
-      // Redirect based on role
-      setTimeout(() => {
-        if (role === "HOST") {
-          router.push("/host/dashboard");
-        } else if (role === "ADMIN") {
-          router.push("/admin/dashboard");
-        } else {
-          router.push("/");
-        }
-      }, 500);
     } else {
       router.push("/auth/login?error=invalid_callback");
     }
-  }, [searchParams, router, login]);
+  }, [searchParams, router]); // ✅ Removed 'login' from dependencies
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
