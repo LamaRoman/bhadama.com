@@ -89,27 +89,44 @@ const DEFAULT_TIERS = {
   },
 };
 
-// NPR Pricing
+// NPR Pricing - Changed 'discount' to 'discountPercent'
 const DEFAULT_PRICING_NPR = {
-  FREE: { MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
+  FREE: { 
+    MONTHLY: { price: 0, discountPercent: 0, finalPrice: 0 }, 
+    YEARLY: { price: 0, discountPercent: 0, finalPrice: 0 } 
+  },
   BASIC: { 
-    MONTHLY: { price: 499, discount: 0, finalPrice: 499 }, YEARLY: { price: 5988, discount: 16, finalPrice: 4999 } },
+    MONTHLY: { price: 499, discountPercent: 0, finalPrice: 499 }, 
+    YEARLY: { price: 5988, discountPercent: 16, finalPrice: 4999 } 
+  },
   PRO: { 
-    MONTHLY: { price: 999, discount: 0, finalPrice: 999 }, YEARLY: { price: 11988, discount: 16, finalPrice: 9999 } },
+    MONTHLY: { price: 999, discountPercent: 0, finalPrice: 999 }, 
+    YEARLY: { price: 11988, discountPercent: 16, finalPrice: 9999 } 
+  },
   PREMIUM: { 
-    MONTHLY: { price: 1999, discount: 0, finalPrice: 1999 }, YEARLY: { price: 23988, discount: 16, finalPrice: 19999 } },
+    MONTHLY: { price: 1999, discountPercent: 0, finalPrice: 1999 }, 
+    YEARLY: { price: 23988, discountPercent: 16, finalPrice: 19999 } 
+  },
 };
 
-// USD Pricing
+// USD Pricing - Changed 'discount' to 'discountPercent'
 const DEFAULT_PRICING_USD = {
   FREE: { 
-    MONTHLY: { price: 0, discount: 0, finalPrice: 0 }, YEARLY: { price: 0, discount: 0, finalPrice: 0 } },
+    MONTHLY: { price: 0, discountPercent: 0, finalPrice: 0 }, 
+    YEARLY: { price: 0, discountPercent: 0, finalPrice: 0 } 
+  },
   BASIC: { 
-    MONTHLY: { price: 5, discount: 0, finalPrice: 5 }, YEARLY: { price: 60, discount: 18, finalPrice: 49 } },
+    MONTHLY: { price: 5, discountPercent: 0, finalPrice: 5 }, 
+    YEARLY: { price: 60, discountPercent: 18, finalPrice: 49 } 
+  },
   PRO: { 
-    MONTHLY: { price: 10, discount: 0, finalPrice: 10 }, YEARLY: { price: 120, discount: 17, finalPrice: 99 } },
+    MONTHLY: { price: 10, discountPercent: 0, finalPrice: 10 }, 
+    YEARLY: { price: 120, discountPercent: 17, finalPrice: 99 } 
+  },
   PREMIUM: { 
-    MONTHLY: { price: 20, discount: 0, finalPrice: 20 }, YEARLY: { price: 240, discount: 17, finalPrice: 199 } },
+    MONTHLY: { price: 20, discountPercent: 0, finalPrice: 20 }, 
+    YEARLY: { price: 240, discountPercent: 17, finalPrice: 199 } 
+  },
 };
 
 // Payment Gateways
