@@ -1,5 +1,5 @@
 import * as listingImageService from "../services/ImageService.js";
-import { uploadToS3 } from "../config/s3.js"; // Adjust based on your setup
+import { uploadToCloudinary } from "../config/cloudinary.js"; // ✅ Changed from S3
 
 /**
  * Upload images to a listing
@@ -19,14 +19,14 @@ export async function uploadImages(req, res) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    // Upload files to S3
+    // ✅ Upload files to Cloudinary
     const uploadPromises = files.map((file) =>
-      uploadToS3(file, null, listingId)  // Pass file object, not file.buffer
+      uploadToCloudinary(file, null, listingId)
     );
 
     const uploadResults = await Promise.all(uploadPromises);
     
-    // Pass full results (with both url and key) to service
+    // Pass full results (with secure_url and public_id) to service
     const images = await listingImageService.addImages(listingId, uploadResults);
 
     res.json({
@@ -38,6 +38,8 @@ export async function uploadImages(req, res) {
     res.status(500).json({ error: err.message || "Server error" });
   }
 }
+
+// ... rest of the functions stay the same
 
 /**
  * Get all images for a listing

@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import crypto from 'crypto';
+import { Readable } from 'stream';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -16,7 +17,7 @@ const generateUniqueFilename = (originalName) => {
 };
 
 /**
- * Upload file to Cloudinary
+ * Upload file to Cloudinary using stream (no base64 conversion)
  * @param {Object} file - File object with buffer, originalname, mimetype
  * @param {String} folder - Cloudinary folder path (e.g., 'listings/123')
  * @param {Number} listingId - Optional listing ID for folder structure
@@ -41,22 +42,31 @@ export const uploadToCloudinary = async (file, folder = null, listingId = null) 
 
     const publicId = `${folder}/${generateUniqueFilename(file.originalname)}`;
 
-    // Convert buffer to base64
-    const b64 = Buffer.from(file.buffer).toString('base64');
-    const dataURI = `data:${file.mimetype};base64,${b64}`;
+    // Use upload_stream instead of base64
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          public_id: publicId,
+          resource_type: 'auto',
+          folder: folder,
+        },
+        (error, result) => {
+          if (error) {
+            reject(new Error(`Failed to upload image: ${error.message}`));
+          } else {
+            resolve({
+              secure_url: result.secure_url,
+              key: result.public_id,
+              public_id: result.public_id,
+            });
+          }
+        }
+      );
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(dataURI, {
-      public_id: publicId,
-      resource_type: 'auto',
-      folder: folder,
+      // Convert buffer to stream and pipe to Cloudinary
+      const bufferStream = Readable.from(file.buffer);
+      bufferStream.pipe(uploadStream);
     });
-
-    return {
-      secure_url: result.secure_url,
-      key: result.public_id, // Cloudinary uses public_id instead of key
-      public_id: result.public_id,
-    };
   } catch (err) {
     console.error("Cloudinary upload error:", err);
     throw new Error(`Failed to upload image: ${err.message}`);

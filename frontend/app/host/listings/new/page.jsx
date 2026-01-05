@@ -139,13 +139,22 @@ export default function NewListing() {
       setUploadProgress("✓ Listing created successfully!");
 
       // 2️⃣ Upload images
-      if (files.length > 0) {
-        setUploadProgress(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`); // ✅ Stage 2
+      // 2️⃣ Upload images
+if (files.length > 0) {
+  setUploadProgress(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`); // ✅ Stage 2
 
-        const formData = new FormData();
-        for (const file of files) {
-          formData.append("images", file);
-        }
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("images", file);
+  }
+
+  // ✅ DEBUG: Check FormData contents
+  console.log("📸 Files to upload:", files);
+  console.log("📸 Number of files:", files.length);
+  console.log("📦 FormData entries:");
+  for (let pair of formData.entries()) {
+    console.log(`  ${pair[0]}:`, pair[1].name, `(${pair[1].size} bytes)`);
+  }
 
         const uploadRes = await api(`/api/host/listings/${listingId}/images`, {
           method: "POST",

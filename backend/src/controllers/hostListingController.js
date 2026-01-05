@@ -26,7 +26,7 @@ export const uploadImages = async (req, res) => {
         data: {
           listingId,
           url: secure_url,
-          publicId: public_id,      // store the S3 key for deletion later
+          publicId: public_id,   
           isCover,
         },
       });
@@ -402,8 +402,8 @@ export const deleteImage = async (req, res) => {
     }
 
     // Delete from Cloudinary
-    if (image.s3Key) {
-      await deleteFromCloudinary(image.s3Key);
+    if (image.publicId) {
+      await deleteFromCloudinary(image.publicId);
     }
 
     // Delete from database

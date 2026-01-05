@@ -38,28 +38,41 @@ async function handleRequest(request: NextRequest) {
     
     console.log(`Proxying: ${request.method} ${url}`);
     
+    // ✅ Check if request is multipart/form-data
+    const contentType = request.headers.get('content-type') || '';
+    const isFormData = contentType.includes('multipart/form-data');
+    
     const options: RequestInit = {
       method: request.method,
       headers: {
-        'Content-Type': 'application/json',
+        // ✅ Only set Content-Type for JSON, not FormData
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(request.headers.get('authorization') && {
           'Authorization': request.headers.get('authorization')!
         }),
       },
     };
     
+    // ✅ Handle body based on content type
     if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
-      const body = await request.text();
-      if (body) {
-        options.body = body;
+      if (isFormData) {
+        // ✅ For FormData, pass it through as-is
+        const formData = await request.formData();
+        options.body = formData as any;
+      } else {
+        // For JSON, get as text
+        const body = await request.text();
+        if (body) {
+          options.body = body;
+        }
       }
     }
 
     const response = await fetch(url, options);
-    const contentType = response.headers.get('Content-Type');
+    const responseContentType = response.headers.get('Content-Type');
 
     let data: any;
-    if (contentType && contentType.includes('application/json')) {
+    if (responseContentType && responseContentType.includes('application/json')) {
       const text = await response.text();
       try {
         data = text ? JSON.parse(text) : {};

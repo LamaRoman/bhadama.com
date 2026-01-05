@@ -3,7 +3,7 @@ import { prisma } from "../config/prisma.js";
 /**
  * Add images to a listing
  * @param {number} listingId - The listing ID
- * @param {Array} uploadResults - Array of S3 upload results { secure_url, key }
+ * @param {Array} uploadResults - Array of Cloudinary upload results { secure_url, public_id }
  * @returns {Promise<Array>} - Array of created image records
  */
 export async function addImages(listingId, uploadResults) {
@@ -16,8 +16,8 @@ export async function addImages(listingId, uploadResults) {
 
   const imageData = uploadResults.map((result, index) => ({
     listingId,
-    url: result.secure_url,   // ✅ Use secure_url from S3 result
-    s3Key: result.key,        // ✅ Use key from S3 result
+    url: result.secure_url,      // ✅ Use secure_url from Cloudinary result
+    publicId: result.public_id,  // ✅ Changed from s3Key to publicId
     isCover: !hasCover && index === 0,
   }));
 
@@ -30,6 +30,8 @@ export async function addImages(listingId, uploadResults) {
     orderBy: { createdAt: "asc" },
   });
 }
+
+// ... rest of the functions stay the same
 
 /**
  * Get all images for a listing

@@ -7,7 +7,7 @@ import passport from "./config/passport.js";
 // Import routes
 import authRoutes from "./routes/authRoutes.js";
 import hostDashboardRoutes from "./routes/hostDashboardRoutes.js";
-import hostListingRoutes from "./routes/hostListingRoutes.js";  // Now includes discount features
+import hostListingRoutes from "./routes/hostListingRoutes.js";
 import publicListingRoutes from "./routes/publicListingRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -37,8 +37,16 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
-// 2. Body parser
-app.use(express.json());
+// 2. Body parser - SKIP for multipart/form-data routes
+app.use((req, res, next) => {
+  // Skip JSON parsing for image upload routes
+  if (req.path.includes('/images') && req.method === 'POST') {
+    return next();
+  }
+  express.json({ limit: '10mb' })(req, res, next);
+});
+
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // 3. Initialize Passport BEFORE routes
 app.use(passport.initialize());
@@ -52,7 +60,7 @@ app.use((req, res, next) => {
 // ============ ROUTES (Register each ONCE) ============
 
 app.use("/api/auth", authRoutes);
-app.use("/api/host/listings", hostListingRoutes);  // Includes discount, pricing, blocked dates, etc.
+app.use("/api/host/listings", hostListingRoutes);
 app.use("/api/host/dashboard", hostDashboardRoutes);
 app.use("/api/host/reviews", hostReviewRoutes);
 app.use("/api/publicListings", publicListingRoutes);
@@ -71,7 +79,6 @@ import {
   adminTierRoutes,
 } from "./routes/tierRoutes.js";
 
-
 // Public tier info (no auth)
 app.use("/api/public", tierPublicRoutes);
 
@@ -86,11 +93,13 @@ app.use("/api/payments/callback", paymentCallbackRoutes);
 
 // Admin tier management
 app.use("/api/admin/tiers", adminTierRoutes);
+
 // Blog Routes
 app.use("/api/blogs", blogRoutes);
 app.use("/api/user/blogs", userBlogRoutes);
 app.use("/api/host/blogs", hostBlogRoutes);
 app.use("/api/admin/blogs", adminBlogRoutes);
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! myBigYard Server is working. 🏡");

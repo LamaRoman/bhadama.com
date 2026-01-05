@@ -588,7 +588,7 @@ model PromotionRequest {
 model Image {
   id        Int      @id @default(autoincrement())
   url       String
-  publicId  String? // Code uses publicId, DB stays s3Key
+  publicId  String // Code uses publicId, DB stays s3Key
   isCover   Boolean  @default(false)
   order     Int      @default(0)
   createdAt DateTime @default(now())
