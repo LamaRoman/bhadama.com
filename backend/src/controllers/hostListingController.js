@@ -378,8 +378,6 @@ export const updateStatus = async (req, res) => {
   }
 };
 
-import { deleteFromCloudinary } from "../config/cloudinary.js";
-
 export const deleteImage = async (req, res) => {
   try {
     const { id } = req.params;
