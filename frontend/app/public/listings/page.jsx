@@ -1,4 +1,3 @@
-// app/listings/page.jsx
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from "react";

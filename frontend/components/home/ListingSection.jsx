@@ -10,56 +10,56 @@ const SECTION_CONFIG = {
     title: "⭐ Featured Venues",
     gradient: "from-amber-500 to-orange-500",
     emptyIcon: "⭐",
-    bgClass: ""
+    bgClass: "bg-white"
   },
   discounted: {
     title: "🔥 Hot Deals & Sales",
     subtitle: "Limited time discounts - Don't miss out!",
     gradient: "from-red-500 to-rose-500",
     emptyIcon: "🔥",
-    bgClass: "bg-gradient-to-r from-red-50 via-rose-50 to-orange-50",
+    bgClass: "bg-gray-100",
     icon: Flame,
-    iconBg: "from-red-500 to-rose-500",
-    accentColor: "red"
+    iconBg: "from-gray-600 to-gray-700",
+    accentColor: "gray"
   },
   trending: {
     title: "📈 Trending Now",
     gradient: "from-purple-500 to-indigo-500",
     emptyIcon: "📈",
-    bgClass: ""
+    bgClass: "bg-gray-100"
   },
   new: {
     title: "🆕 Just Added",
     gradient: "from-blue-500 to-cyan-500",
     emptyIcon: "🆕",
-    bgClass: "bg-gradient-to-r from-blue-50 to-cyan-50"
+    bgClass: "bg-gray-50"
   },
   tieredDiscounts: {
     title: "📊 Book Longer, Save More",
     subtitle: "Get bigger discounts when you book for more hours",
     gradient: "from-indigo-500 to-violet-500",
     emptyIcon: "📊",
-    bgClass: "bg-gradient-to-r from-indigo-50 via-violet-50 to-purple-50",
+    bgClass: "bg-white",
     icon: TrendingUp,
-    iconBg: "from-indigo-500 to-violet-500",
-    accentColor: "indigo"
+    iconBg: "from-gray-600 to-gray-700",
+    accentColor: "gray"
   },
   bonusHours: {
     title: "🎁 Free Bonus Hours",
     subtitle: "Book minimum hours and get extra time FREE",
     gradient: "from-emerald-500 to-teal-500",
     emptyIcon: "🎁",
-    bgClass: "bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50",
+    bgClass: "bg-gray-50",
     icon: Gift,
-    iconBg: "from-emerald-500 to-teal-500",
-    accentColor: "emerald"
+    iconBg: "from-gray-600 to-gray-700",
+    accentColor: "gray"
   },
   specialOffers: {
     title: "🎁 Special Offers",
     subtitle: "Duration discounts & bonus hours",
     gradient: "from-indigo-500 to-purple-500",
     emptyIcon: "🎁",
-    bgClass: "bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50"
+    bgClass: "bg-white"
   }
 };
 
@@ -122,7 +122,7 @@ export default function ListingSection({
               <p className="text-sm text-stone-600 ml-11">{config.subtitle}</p>
             </div>
             {showViewAll && listings.length > maxItems && (
-              <Link href="/public/listings?offers=sale" className="text-red-600 hover:text-red-700 font-medium text-sm mt-2 sm:mt-0">
+              <Link href="/public/listings?offers=sale" className="text-gray-700 hover:text-gray-900 font-medium text-sm mt-2 sm:mt-0">
                 View all deals →
               </Link>
             )}
@@ -131,12 +131,12 @@ export default function ListingSection({
           {discountReasons.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-5">
               {discountReasons.map((reason, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-red-700 border border-red-200 shadow-sm">
+                <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
                   <Tag className="w-3.5 h-3.5" />
                   {reason}
                 </span>
               ))}
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-orange-700 border border-orange-200 shadow-sm">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
                 <Clock className="w-3.5 h-3.5" />
                 Limited Time Only
               </span>
@@ -151,7 +151,7 @@ export default function ListingSection({
 
           {listings.length > maxItems && (
             <div className="mt-6 text-center">
-              <Link href="/public/listings?offers=sale" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all text-sm">
+              <Link href="/public/listings?offers=sale" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition-all text-sm">
                 <Percent className="w-4 h-4" />
                 See All {listings.length} Hot Deals
               </Link>
@@ -179,22 +179,22 @@ export default function ListingSection({
               <p className="text-sm text-stone-600 ml-11">{config.subtitle}</p>
             </div>
             {showViewAll && listings.length > maxItems && (
-              <Link href="/public/listings?offers=tiered" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm mt-2 sm:mt-0">
+              <Link href="/public/listings?offers=tiered" className="text-gray-700 hover:text-gray-900 font-medium text-sm mt-2 sm:mt-0">
                 View all →
               </Link>
             )}
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-indigo-700 border border-indigo-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Clock className="w-3.5 h-3.5" />
               4+ hours: 10% off
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-indigo-700 border border-indigo-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Clock className="w-3.5 h-3.5" />
               6+ hours: 15% off
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-indigo-700 border border-indigo-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Clock className="w-3.5 h-3.5" />
               8+ hours: 20% off
             </span>
@@ -208,7 +208,7 @@ export default function ListingSection({
 
           {listings.length > maxItems && (
             <div className="mt-6 text-center">
-              <Link href="/public/listings?offers=tiered" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all text-sm">
+              <Link href="/public/listings?offers=tiered" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition-all text-sm">
                 <Percent className="w-4 h-4" />
                 See All {listings.length} Tiered Deals
               </Link>
@@ -236,18 +236,18 @@ export default function ListingSection({
               <p className="text-sm text-stone-600 ml-11">{config.subtitle}</p>
             </div>
             {showViewAll && listings.length > maxItems && (
-              <Link href="/public/listings?offers=bonus" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm mt-2 sm:mt-0">
+              <Link href="/public/listings?offers=bonus" className="text-gray-700 hover:text-gray-900 font-medium text-sm mt-2 sm:mt-0">
                 View all →
               </Link>
             )}
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-emerald-700 border border-emerald-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Gift className="w-3.5 h-3.5" />
               Book 4+ hours → Get 1 hour FREE!
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-emerald-700 border border-emerald-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Gift className="w-3.5 h-3.5" />
               Book 6+ hours → Get 2 hours FREE!
             </span>
@@ -261,7 +261,7 @@ export default function ListingSection({
 
           {listings.length > maxItems && (
             <div className="mt-6 text-center">
-              <Link href="/public/listings?offers=bonus" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all text-sm">
+              <Link href="/public/listings?offers=bonus" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition-all text-sm">
                 <Gift className="w-4 h-4" />
                 See All {listings.length} Bonus Offers
               </Link>
@@ -280,7 +280,7 @@ export default function ListingSection({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg">
+                <div className="p-2 bg-gradient-to-r from-gray-600 to-gray-700 rounded-lg">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <h2 className="text-xl font-bold text-stone-900">{config.title}</h2>
@@ -288,18 +288,18 @@ export default function ListingSection({
               <p className="text-sm text-stone-600 ml-11">{config.subtitle}</p>
             </div>
             {showViewAll && listings.length > maxItems && (
-              <Link href="/public/listings?offers=all" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm mt-2 sm:mt-0">
+              <Link href="/public/listings?offers=all" className="text-gray-700 hover:text-gray-900 font-medium text-sm mt-2 sm:mt-0">
                 View all offers →
               </Link>
             )}
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-indigo-700 border border-indigo-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <TrendingUp className="w-3.5 h-3.5" />
               Tiered Discounts - Book longer, save more
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-emerald-700 border border-emerald-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
               <Gift className="w-3.5 h-3.5" />
               Bonus Hours - Get free extra time
             </span>
@@ -313,7 +313,7 @@ export default function ListingSection({
 
           {listings.length > maxItems && (
             <div className="mt-6 text-center">
-              <Link href="/public/listings?offers=all" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all text-sm">
+              <Link href="/public/listings?offers=all" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition-all text-sm">
                 <Gift className="w-4 h-4" />
                 See All {listings.length} Special Offers
               </Link>
@@ -331,7 +331,7 @@ export default function ListingSection({
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold text-stone-900">{config.title}</h2>
           {showViewAll && listings.length > maxItems && (
-            <Link href={`/public/listings?section=${type}`} className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
+            <Link href={`/public/listings?section=${type}`} className="text-gray-700 hover:text-gray-900 font-medium text-sm">
               View all →
             </Link>
           )}
