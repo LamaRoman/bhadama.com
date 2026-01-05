@@ -86,7 +86,7 @@ export default function ListingCard({ listing, showBadge = true }) {
   const daysRemaining = getDiscountDaysRemaining(listing);
   const showDiscount = hasDiscount && discountActive;
 
-  // Show first 3 amenities only if no special offers to display
+  // Show first 3 amenities
   const displayAmenities = amenities?.slice(0, 3) || [];
 
   return (
@@ -239,15 +239,15 @@ export default function ListingCard({ listing, showBadge = true }) {
           )}
 
           {/* Sale Info Banner - Show when discount is active but no reason tag shown */}
-          {showDiscount && !discountReason && !hasTiered && !hasBonus && (
+          {showDiscount && !discountReason && (
             <div className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 text-[10px] font-medium rounded-md border border-red-100 mb-2">
               <Tag className="w-3 h-3 flex-shrink-0" />
               <span>Limited time {discountPercent}% discount!</span>
             </div>
           )}
 
-          {/* Amenities - Only show if no special offers displayed */}
-          {!hasSpecialOffer && !showDiscount && displayAmenities.length > 0 && (
+          {/* ✅ FIXED: Always show amenities regardless of offers/discounts */}
+          {displayAmenities.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {displayAmenities.map((amenity, i) => (
                 <span
@@ -259,7 +259,7 @@ export default function ListingCard({ listing, showBadge = true }) {
               ))}
               {amenities.length > 3 && (
                 <span className="px-2 py-1 bg-stone-100 text-stone-600 text-xs font-medium rounded-md">
-                  +{amenities.length - 3} more
+                  +{amenities.length - 3}
                 </span>
               )}
             </div>

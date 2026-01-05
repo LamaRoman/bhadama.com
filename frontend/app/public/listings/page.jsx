@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "../../../utils/api";
+import { api } from "../../utils/api";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight, Loader2,
   Gift, TrendingUp, Sparkles, Tag, MapPin, Users, Star,
@@ -550,7 +550,7 @@ function ListingCardBrowse({ listing }) {
             {bonusOffer.label || `${bonusOffer.minHours}+ hrs = ${bonusOffer.bonusHours}hr FREE`}
           </div>
         )}
-        {!hasTiered && !hasBonus && listing.amenities?.length > 0 && (
+        { listing.amenities?.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {listing.amenities.slice(0, 2).map((a, i) => (
               <span key={i} className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded-full">{a}</span>
