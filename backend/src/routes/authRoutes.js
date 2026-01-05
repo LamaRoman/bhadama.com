@@ -17,7 +17,7 @@ BigInt.prototype.toJSON = function() {
 const generateToken = (user) => {
   return jwt.sign(
     {
-      userId: user.id.toString(),
+      userId: Number(user.id),
       email: user.email,
       role: user.role,
       adminRole: user.adminRole || null,

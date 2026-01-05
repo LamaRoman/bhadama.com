@@ -76,7 +76,7 @@ export const getReviews = async (req, res) => {
 export const checkCanReview = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user.userId); 
 
     if (isNaN(listingId))
       return res.status(400).json({
@@ -217,7 +217,7 @@ export const checkCanReview = async (req, res) => {
 export const createReview = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = BigInt(req.user?.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user?.userId);
 
     const {
       bookingId,
@@ -311,7 +311,7 @@ export const createReview = async (req, res) => {
 export const updateReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user.userId); 
     const { rating, title, comment } = req.body;
 
     const review = await prisma.review.findFirst({
@@ -359,7 +359,7 @@ export const updateReview = async (req, res) => {
 export const markHelpful = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user.userId); 
 
     const existingHelpful = await prisma.reviewHelpful.findUnique({
       where: { 
@@ -413,7 +413,7 @@ export const markHelpful = async (req, res) => {
 export const reportReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user.userId); 
     const { reason } = req.body;
 
     const existingReport = await prisma.reviewReport.findUnique({
@@ -463,7 +463,7 @@ export const reportReview = async (req, res) => {
 export const getEligibleBookings = async (req, res) => {
   try {
     const listingId = parseInt(req.params.listingId);
-    const userId = BigInt(req.user.userId); // Fixed: use userId and convert to BigInt
+    const userId = Number(req.user.userId);
     
     if (isNaN(listingId))
       return res.status(400).json({ 
