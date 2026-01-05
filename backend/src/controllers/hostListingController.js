@@ -1,10 +1,10 @@
 import { prisma } from "../config/prisma.js";
-import { uploadToS3 } from "../config/s3.js";
+import { uploadToCloudinary,deleteFromCloudinary } from "../config/cloudinary.js";
 
 export const uploadImages = async (req, res) => {
   try {
     const listingId = parseInt(req.params.id);
-    const hostId = req.user.userId;
+    const hostId = Number(req.user.userId);
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No images uploaded" });
@@ -15,8 +15,8 @@ export const uploadImages = async (req, res) => {
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
 
-      // Upload each file to S3
-      const { secure_url, key } = await uploadToS3(file, null, listingId);
+      // Upload each file to Cloudinary
+      const { secure_url, public_id } = await uploadToCloudinary(file, null, listingId);
 
       // Determine if this should be the cover image
       const isCover = i === 0; // first uploaded image is cover
@@ -26,7 +26,7 @@ export const uploadImages = async (req, res) => {
         data: {
           listingId,
           url: secure_url,
-          s3Key: key,      // store the S3 key for deletion later
+          publicId: public_id,      // store the S3 key for deletion later
           isCover,
         },
       });
@@ -378,10 +378,44 @@ export const updateStatus = async (req, res) => {
   }
 };
 
+import { deleteFromCloudinary } from "../config/cloudinary.js";
+
 export const deleteImage = async (req, res) => {
   try {
-    res.json({ message: "deleteImage not implemented yet" });
+    const { id } = req.params;
+    const hostId = Number(req.user.userId);
+
+    // Get the image and verify ownership
+    const image = await prisma.image.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        listing: {
+          select: { hostId: true }
+        }
+      }
+    });
+
+    if (!image) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    if (image.listing.hostId !== hostId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // Delete from Cloudinary
+    if (image.s3Key) {
+      await deleteFromCloudinary(image.s3Key);
+    }
+
+    // Delete from database
+    await prisma.image.delete({
+      where: { id: parseInt(id) }
+    });
+
+    res.json({ message: "Image deleted successfully" });
   } catch (error) {
+    console.error("DELETE IMAGE ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 };
