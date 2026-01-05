@@ -10,9 +10,7 @@
     "start": "node src/app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "seed:tiers": "node prisma/seeds/tierSeed.mjs",
-    "seed:data": "node prisma/seeds/seed-production.js",
-    "seed:all": "npm run seed:tiers && npm run seed:data"
+    "seed:tiers": "node prisma/seeds/tierSeed.mjs"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +42,6 @@
     "prisma": "^6.19.1"
   },
   "prisma": {
-    "seed": "node prisma/seeds/seed-production.js"
+    "seed": "node prisma/seeds/tierSeed.mjs"
   }
 }
