@@ -7,6 +7,7 @@ const router = express.Router();
 
 
 
+
 // Get user profile
 router.get("/profile", authenticate, controller.getProfile);
 
