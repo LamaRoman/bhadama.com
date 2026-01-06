@@ -243,7 +243,7 @@ export default function BookingsTab({ refreshKey }) {
                       {/* Amount */}
                       <td className="px-6 py-4">
                         <p className="font-bold text-gray-900">
-                          {formatCurrency(booking.totalPrice)}
+                          {formatCurrency(Number(booking.totalPrice))}
                         </p>
                       </td>
 
