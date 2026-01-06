@@ -8,10 +8,10 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
-  const hasProcessed = useRef(false); // ✅ Prevent double execution
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // ✅ Prevent running multiple times
+    // Prevent running multiple times
     if (hasProcessed.current) return;
 
     const token = searchParams.get("token");
@@ -21,33 +21,46 @@ function CallbackContent() {
     const role = searchParams.get("role");
     const error = searchParams.get("error");
 
+    // Handle OAuth errors
     if (error) {
       console.error("OAuth error:", error);
       router.push(`/auth/login?error=${error}`);
       return;
     }
 
+    // Handle successful authentication
     if (token && userId) {
-      hasProcessed.current = true; // ✅ Mark as processed
+      hasProcessed.current = true;
 
       // Create user object
       const user = {
         id: parseInt(userId),
         name: decodeURIComponent(name || ""),
         email: decodeURIComponent(email || ""),
-        role: role || "USER"
+        role: role || "USER",
       };
 
-      // Store in localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      console.log("✅ Google OAuth Success:", { user, role });
 
-      // Update auth context (don't redirect here, login will handle it)
+      // Login (this should handle localStorage and state)
       login(user, token);
+
+      // Redirect based on role
+      setTimeout(() => {
+        if (role === "HOST") {
+          console.log("🏠 Redirecting to host dashboard");
+          router.push("/host/dashboard");
+        } else {
+          console.log("👤 Redirecting to home");
+          router.push("/");
+        }
+      }, 500); // Small delay to ensure login completes
+
     } else {
+      console.error("Missing token or userId in callback");
       router.push("/auth/login?error=invalid_callback");
     }
-  }, [searchParams, router]); // ✅ Removed 'login' from dependencies
+  }, [searchParams, router, login]); // ✅ Include all dependencies
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -62,11 +75,13 @@ function CallbackContent() {
 
 export default function AuthCallback() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
       <CallbackContent />
     </Suspense>
   );

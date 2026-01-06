@@ -14,11 +14,6 @@ const router = express.Router();
  */
 router.get("/google", (req, res, next) => {
   const role = req.query.role || "USER";
-  console.log("🔍 Initial Google auth request - Role:", role); // Add this
-  console.log("🟢 [BACKEND] /api/auth/google hit");
-  console.log("🟢 [BACKEND] req.query:", req.query);
-  console.log("🟢 [BACKEND] Role extracted:", role);
-  console.log("🟢 [BACKEND] Passing to passport with state:", role);
   
   passport.authenticate("google", {
     scope: ["profile", "email"],
@@ -32,13 +27,48 @@ router.get("/google", (req, res, next) => {
  * @desc    Google OAuth callback
  * @access  Public
  */
+// Google OAuth callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    session: false,
-    failureRedirect: `${process.env.FRONTEND_URL}/auth/login?error=google_auth_failed`
+  passport.authenticate("google", { 
+    failureRedirect: `${process.env.FRONTEND_URL}/auth/login?error=google_auth_failed`,
+    session: false 
   }),
-  authController.googleCallback
+  (req, res) => {
+    try {
+      // Generate JWT token
+      const token = jwt.sign(
+        { 
+          userId: req.user.id, 
+          email: req.user.email, 
+          role: req.user.role 
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "30d" }
+      );
+
+      // Use FRONTEND_URL from environment
+      const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+      
+      // Build redirect URL with all user data
+      const params = new URLSearchParams({
+        token,
+        userId: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+      });
+
+      const redirectUrl = `${FRONTEND_URL}/auth/callback?${params.toString()}`;
+      
+      console.log("🟢 [BACKEND] Redirecting to:", redirectUrl);
+      
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error("Google callback error:", error);
+      res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=auth_failed`);
+    }
+  }
 );
 
 /* ==================== EMAIL/PASSWORD AUTH ==================== */
