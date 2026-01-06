@@ -352,7 +352,7 @@ export default function BookingsTab({ refreshKey }) {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Amount</p>
-                  <p className="font-bold text-lg">{formatCurrency(selectedBooking.totalAmount)}</p>
+                  <p className="font-bold text-lg">{formatCurrency(selectedBooking.totalPrice)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Booked On</p>
