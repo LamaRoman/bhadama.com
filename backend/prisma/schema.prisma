@@ -202,6 +202,31 @@ model User {
   payments           Payment[]
   helpfulReviews     Review[]            @relation("HelpfulReviews")
 
+  // Email Verification (3 new fields)
+  emailVerificationToken       String?   @unique
+  emailVerificationExpiry      DateTime?
+  emailVerificationAttempts    Int       @default(0)
+  emailVerificationLockedUntil DateTime?
+  
+  // Phone Verification (5 new fields)
+  phoneVerified                Boolean   @default(false)
+  phoneVerificationToken       String?
+  phoneVerificationExpiry      DateTime?
+  phoneVerificationAttempts    Int       @default(0)
+  phoneVerificationLockedUntil DateTime?
+  phoneCountryCode             String?
+  
+  // Rate Limiting for OTP (6 new fields)
+  lastEmailOtpSent             DateTime?
+  emailOtpSendCount            Int       @default(0)
+  emailOtpResetTime            DateTime?
+  lastPhoneOtpSent             DateTime?
+  phoneOtpSendCount            Int       @default(0)
+  phoneOtpResetTime            DateTime?
+  
+  
+  
+  
   @@index([email])
   @@index([role])
 }
