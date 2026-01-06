@@ -51,12 +51,6 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // 3. Initialize Passport BEFORE routes
 app.use(passport.initialize());
 
-// Debug logger
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
-
 // ============ ROUTES (Register each ONCE) ============
 
 app.use("/api/auth", authRoutes);

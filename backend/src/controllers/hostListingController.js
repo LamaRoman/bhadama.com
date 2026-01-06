@@ -59,9 +59,6 @@ const generateSlug = (title) => {
 
 export const createListing = async (req, res) => {
   try {
-    console.log("📝 Creating listing with data:", req.body);
-    console.log("👤 Host ID:", req.user.userId);
-    
     const { 
       title, 
       description, 
@@ -144,8 +141,6 @@ export const createListing = async (req, res) => {
       }
     };
 
-    console.log("📦 Prepared listing data:", listingData);
-
     const listing = await prisma.listing.create({
       data: listingData,
       include: {
@@ -160,12 +155,9 @@ export const createListing = async (req, res) => {
       }
     });
 
-    console.log("✅ Listing created successfully:", listing.id);
-
     res.status(201).json(listing);
   } catch (error) {
-    console.error("❌ CREATE LISTING ERROR:", error);
-    console.error("❌ Error details:", error.message);
+    console.error("Create listing error:", error.message);
     
     // Handle specific errors
     if (error.code === 'P2002') {

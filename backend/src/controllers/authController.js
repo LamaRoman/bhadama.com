@@ -27,11 +27,6 @@ const generateToken = (user) => {
  */
 export const register = async (req, res) => {
   try {
-    console.log("📥 Registration request received:", { 
-      email: req.body.email, 
-      role: req.body.role 
-    });
-
     const { name, email, password, role = "USER" } = req.body;
 
     // Validate input
@@ -46,8 +41,6 @@ export const register = async (req, res) => {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      console.log("❌ User already exists:", email);
-      
       // Check if it's a Google-only account
       if (existingUser.googleId && !existingUser.password) {
         return res.status(400).json({ 
@@ -60,7 +53,6 @@ export const register = async (req, res) => {
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log("🔐 Password hashed successfully");
 
     // Create user
     const user = await prisma.user.create({
@@ -71,15 +63,9 @@ export const register = async (req, res) => {
         role: role === "HOST" ? "HOST" : "USER",
       },
     });
-    console.log("✅ User created in database:", { 
-      id: user.id.toString(), 
-      email: user.email,
-      role: user.role 
-    });
 
     // Generate JWT
     const token = generateToken(user);
-    console.log("🎫 JWT token generated");
 
     // Prepare response
     const responseData = {
@@ -94,18 +80,11 @@ export const register = async (req, res) => {
       },
     };
 
-    console.log("📤 Sending response:", {
-      status: 201,
-      hasToken: !!responseData.token,
-      userId: responseData.user.id
-    });
-
     // Send JSON response
     return res.status(201).json(responseData);
 
   } catch (error) {
-    console.error("❌ Register error:", error);
-    console.error("Error stack:", error.stack);
+    console.error("Register error:", error.message);
 
     return res.status(500).json({
       error: "Registration failed",
@@ -179,7 +158,7 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login error:", error.message);
     res.status(500).json({ error: "Login failed" });
   }
 };
@@ -212,7 +191,7 @@ export const getCurrentUser = async (req, res) => {
       hasGoogleLinked: !!user.googleId
     });
   } catch (error) {
-    console.error("Get me error:", error);
+    console.error("Get user error:", error.message);
     res.status(500).json({ error: "Failed to get user" });
   }
 };
@@ -235,7 +214,7 @@ export const googleCallback = (req, res) => {
     
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);
   } catch (error) {
-    console.error("Google callback error:", error);
+    console.error("Google callback error:", error.message);
     res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=auth_failed`);
   }
 };

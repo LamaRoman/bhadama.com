@@ -3,11 +3,8 @@ import { prisma } from "../config/prisma.js";
 
 export async function getHostDashboard(req, res) {
   try {
-    console.log('📊 Host Dashboard requested by user:', req.user);
-    
     // Check authentication
     if (!req.user || !req.user.userId) {
-      console.log('❌ No authenticated user found');
       return res.status(401).json({ 
         error: "Authentication required",
         message: "Please log in to view your dashboard" 
@@ -17,14 +14,11 @@ export async function getHostDashboard(req, res) {
     const hostId = parseInt(req.user.userId);
     
     if (isNaN(hostId)) {
-      console.log('❌ Invalid host ID:', req.user.userId);
       return res.status(400).json({ 
         error: "Invalid host ID",
         message: "User ID is not valid" 
       });
     }
-
-    console.log('✅ Fetching dashboard for host ID:', hostId);
 
     // 1. Get host's listings with error handling
     const listings = await prisma.listing.findMany({
@@ -36,17 +30,14 @@ export async function getHostDashboard(req, res) {
         status: true
       }
     }).catch(err => {
-      console.error('Error fetching listings:', err);
+      console.error('Error fetching listings:', err.message);
       return [];
     });
-    
-    console.log(`Found ${listings.length} listings for host ${hostId}`);
     
     const listingIds = listings.map(l => l.id);
 
     // Return empty dashboard if no listings
     if (listingIds.length === 0) {
-      console.log('No listings found, returning empty dashboard');
       return res.json(getEmptyDashboard());
     }
 
@@ -70,11 +61,9 @@ export async function getHostDashboard(req, res) {
       },
       orderBy: { createdAt: 'desc' }
     }).catch(err => {
-      console.error('Error fetching bookings:', err);
+      console.error('Error fetching bookings:', err.message);
       return [];
     });
-
-    console.log(`Found ${bookings.length} total bookings`);
 
     // 3. Calculate stats
     const stats = calculateSimpleStats(bookings, listings);
@@ -96,12 +85,10 @@ export async function getHostDashboard(req, res) {
       upcomingTasks: []
     };
 
-    console.log('✅ Dashboard data prepared successfully');
     return res.json(dashboardData);
 
   } catch (error) {
-    console.error("❌ GET HOST DASHBOARD ERROR:", error);
-    console.error("Stack trace:", error.stack);
+    console.error("Dashboard error:", error.message);
     
     return res.status(500).json({ 
       error: "Failed to fetch dashboard data",
@@ -239,10 +226,10 @@ async function getMonthlyData(listingIds) {
             gte: monthStart,
             lte: monthEnd
           },
-          status: { in: ['CONFIRMED', 'COMPLETED'] } // Include both confirmed and completed
+          status: { in: ['CONFIRMED', 'COMPLETED'] }
         }
       }).catch(err => {
-        console.error('Error fetching monthly bookings:', err);
+        console.error('Error fetching monthly bookings:', err.message);
         return [];
       });
 
@@ -253,7 +240,7 @@ async function getMonthlyData(listingIds) {
       
       // Calculate occupancy (simplified - bookings per day average)
       const daysInMonth = (monthEnd - monthStart) / (1000 * 60 * 60 * 24) + 1;
-      const bookingDays = bookings.length * 1; // Assuming 1 day per booking for hourly rentals
+      const bookingDays = bookings.length * 1;
       const occupancy = (bookingDays / daysInMonth) * 100;
       
       monthlyData.push({
@@ -264,10 +251,9 @@ async function getMonthlyData(listingIds) {
       });
     }
 
-    console.log('📊 Monthly data prepared:', monthlyData);
     return monthlyData;
   } catch (error) {
-    console.error('Error in getMonthlyData:', error);
+    console.error('Error in getMonthlyData:', error.message);
     return [];
   }
 }
@@ -283,7 +269,7 @@ async function getTopListingsSimple(listingIds) {
         }
       }
     }).catch(err => {
-      console.error('Error fetching listings for top listings:', err);
+      console.error('Error fetching listings:', err.message);
       return [];
     });
 
@@ -301,7 +287,7 @@ async function getTopListingsSimple(listingIds) {
         id: true
       }
     }).catch(err => {
-      console.error('Error fetching booking revenues:', err);
+      console.error('Error fetching revenues:', err.message);
       return [];
     });
 
@@ -328,7 +314,7 @@ async function getTopListingsSimple(listingIds) {
 
     return topListings;
   } catch (error) {
-    console.error('Error in getTopListingsSimple:', error);
+    console.error('Error in getTopListingsSimple:', error.message);
     return [];
   }
 }
