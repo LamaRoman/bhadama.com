@@ -8,6 +8,8 @@ import { upload } from "../middleware/multer.js";
 import * as listingController from "../controllers/hostListingController.js";
 import * as discountController from "../controllers/hostDiscountController.js";
 import * as imageController from "../controllers/listingImageController.js";
+import { requireAllVerifications } from '../middleware/verificationMiddleware.js';
+
 
 const router = express.Router();
 
@@ -18,7 +20,7 @@ router.use(authorize(["HOST"]));
 // ============ LISTING CRUD ============
 router.get("/", listingController.getHostListings);
 router.get("/:id", listingController.getListingById);
-router.post("/", listingController.createListing);
+router.post("/",requireAllVerifications,listingController.createListing);
 router.put("/:id", listingController.updateListing);
 router.patch("/:id", listingController.updateListing);
 router.delete("/:id", listingController.deleteListing);

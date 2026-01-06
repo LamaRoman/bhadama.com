@@ -5,6 +5,7 @@ import cors from "cors";
 import passport from "./config/passport.js";
 
 // Import routes
+import verificationRoutes from './routes/verificationRoutes.js';
 import authRoutes from "./routes/authRoutes.js";
 import hostDashboardRoutes from "./routes/hostDashboardRoutes.js";
 import hostListingRoutes from "./routes/hostListingRoutes.js";
@@ -22,6 +23,15 @@ import blogRoutes from "./routes/blogRoutes.js";
 import userBlogRoutes from "./routes/userBlogRoutes.js";
 import hostBlogRoutes from "./routes/hostBlogRoutes.js";
 import adminBlogRoutes from "./routes/adminBlogRoutes.js";
+
+import {
+  tierPublicRoutes,
+  hostSubscriptionRoutes,
+  paymentRoutes,
+  paymentCallbackRoutes,
+  adminTierRoutes,
+} from "./routes/tierRoutes.js";
+
 const app = express();
 
 // ============ MIDDLEWARE (ORDER MATTERS!) ============
@@ -55,6 +65,8 @@ app.use(passport.initialize());
 // ============ ROUTES (Register each ONCE) ============
 
 app.use("/api/auth", authRoutes);
+app.use('/api/verification', verificationRoutes);
+
 app.use("/api/host/listings", hostListingRoutes);
 app.use("/api/host/dashboard", hostDashboardRoutes);
 app.use("/api/host/reviews", hostReviewRoutes);
@@ -66,13 +78,6 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/discover", discoveryRoutes);
 
-import {
-  tierPublicRoutes,
-  hostSubscriptionRoutes,
-  paymentRoutes,
-  paymentCallbackRoutes,
-  adminTierRoutes,
-} from "./routes/tierRoutes.js";
 
 // Public tier info (no auth)
 app.use("/api/public", tierPublicRoutes);
@@ -95,6 +100,18 @@ app.use("/api/user/blogs", userBlogRoutes);
 app.use("/api/host/blogs", hostBlogRoutes);
 app.use("/api/admin/blogs", adminBlogRoutes);
 
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Server is running',
+    emailVerification: !!process.env.RESEND_API_KEY,
+    smsVerification: {
+      twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
+      sparrow: !!process.env.SPARROW_API_TOKEN
+    }
+  });
+});
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! myBigYard Server is working. 🏡");
@@ -119,4 +136,7 @@ setInterval(async () => {
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+console.log(`📧 Email verification: ${process.env.RESEND_API_KEY ? '✅ Enabled' : '❌ Disabled'}`);
+  console.log(`📱 SMS verification (Nepal): ${process.env.SMS_NEPAL_PROVIDER || 'twilio'}`);
+  console.log(`📱 SMS verification (International): ${process.env.SMS_INTERNATIONAL_PROVIDER || 'twilio'}`);
 });

@@ -1,11 +1,12 @@
 import express from "express";
 import { authenticate, authorize } from "../middleware/authMiddleware.js";
 import * as controller from "../controllers/bookingController.js";
+import { requireEmailVerification } from '../middleware/verificationMiddleware.js';
 
 const router = express.Router();
 
 // Create booking
-router.post("/", authenticate, controller.createBooking);
+router.post("/", authenticate,requireEmailVerification, controller.createBooking);
 
 // Get available time slots for a listing
 router.get("/availability/:listingId", controller.getAvailability);

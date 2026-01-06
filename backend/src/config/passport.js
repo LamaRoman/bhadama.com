@@ -44,6 +44,7 @@ passport.use(
               },
             });
           }
+          console.log("✅ Existing user logged in:", { id: user.id, role: user.role });
         } else {
           // New user - create with the role from state
           user = await prisma.user.create({
@@ -57,6 +58,7 @@ passport.use(
               // password is optional - don't include it
             },
           });
+          console.log("✅ New user created:", { id: user.id, role: user.role });
         }
 
         return done(null, user);

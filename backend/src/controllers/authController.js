@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../config/prisma.js";
 import { validateRegistration, validateLogin } from "../validators/auth.validator.js";
+import emailService from "../services/email/emailService.js";
+import otpUtils from "../../utils/otpUtils.js";
 
 // Add BigInt serialization support
 BigInt.prototype.toJSON = function() {
@@ -24,6 +26,7 @@ const generateToken = (user) => {
 
 /**
  * Register new user with email/password
+ * NOW WITH AUTO EMAIL VERIFICATION SENDING
  */
 export const register = async (req, res) => {
   try {
@@ -54,22 +57,59 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // ============================================
+    // Generate OTP for email verification
+    // ============================================
+    const otp = otpUtils.generateOTP();
+    const hashedOTP = await otpUtils.hashOTP(otp);
+    const expiryTime = otpUtils.getExpiryTime();
+
+    // Create user with verification token
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role: role === "HOST" ? "HOST" : "USER",
+        emailVerified: false,
+        // Email verification fields
+        emailVerificationToken: hashedOTP,
+        emailVerificationExpiry: expiryTime,
+        lastEmailOtpSent: new Date(),
+        emailOtpSendCount: 1,
+        emailOtpResetTime: otpUtils.getResetTime(),
       },
     });
 
+    console.log("✅ User created in database:", { 
+      id: user.id, 
+      email: user.email, 
+      role: user.role,
+      emailVerified: user.emailVerified 
+    });
+
+    // ============================================
+    // Send verification email
+    // ============================================
+    let emailSent = false;
+    try {
+      await emailService.sendVerificationOTP(user.email, otp, user.name);
+      console.log(`✅ Verification email sent to ${user.email}`);
+      emailSent = true;
+    } catch (emailError) {
+      console.error('❌ Failed to send verification email:', emailError);
+      // Don't fail registration if email fails - user can request resend later
+    }
+
     // Generate JWT
     const token = generateToken(user);
-
+    console.log("🎫 JWT token generated");
+    
     // Prepare response
     const responseData = {
-      message: "Registration successful",
+      message: emailSent 
+        ? "Registration successful! Please check your email for verification code."
+        : "Registration successful! Please request a verification code.",
       token,
       user: {
         id: user.id.toString(),
@@ -77,7 +117,14 @@ export const register = async (req, res) => {
         email: user.email,
         role: user.role,
         profilePhoto: user.profilePhoto || null,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
       },
+      verification: {
+        emailSent: emailSent,
+        maskedEmail: otpUtils.maskEmail(user.email),
+        expiresIn: otpUtils.otpExpiryMinutes,
+      }
     };
 
     // Send JSON response
@@ -154,7 +201,10 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
         adminRole: user.adminRole,
-        profilePhoto: user.profilePhoto
+        profilePhoto: user.profilePhoto,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        phone: user.phone,
       }
     });
   } catch (error) {
@@ -175,10 +225,13 @@ export const getCurrentUser = async (req, res) => {
         name: true,
         email: true,
         role: true,
+        adminRole: true,
         profilePhoto: true,
         phone: true,
         createdAt: true,
-        googleId: true
+        googleId: true,
+        emailVerified: true,
+        phoneVerified: true,
       }
     });
 
@@ -201,7 +254,7 @@ export const getCurrentUser = async (req, res) => {
  */
 export const googleCallback = (req, res) => {
   try {
-    const user = req.user;
+    const user = req.user; // From passport
     const token = generateToken(user);
     
     const params = new URLSearchParams({
