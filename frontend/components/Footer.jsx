@@ -10,7 +10,7 @@ export default function Footer() {
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-white">myBigYard.com</h2>
             <p className="mt-3 text-sm">
-              Nepal’s trusted booking platform for rooms, apartments, houses,
+              Nepal’s trusted booking platform for rooms, apartments, houses
               and short-term stays. Simple. Safe. Fast.
             </p>
           </div>
@@ -113,7 +113,7 @@ export default function Footer() {
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-white mb-3">Contact</h3>
             <ul className="text-sm space-y-2">
-              <li>Email: support@bhadama.com</li>
+              <li>Email: support@mybigyard.com</li>
               <li>Phone: +977-98xxxxxxxx</li>
               <li>Location: Kathmandu, Nepal</li>
             </ul>

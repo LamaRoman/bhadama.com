@@ -159,9 +159,9 @@ export default function PublicListingDetail() {
 
       if (data.error) throw new Error(data.error);
 
-      toast.success("🎉 Booking Confirmed!");
+      toast.success("Booking Confirmed!");
       setBookingData({ date: "", startTime: "", endTime: "", guests: 1 });
-      setTimeout(() => router.push("/bookings"), 2000);
+      setTimeout(() => router.push("/users/dashboard"), 1500);
     } catch (err) {
       toast.error(err.message || "Booking failed");
     } finally {
