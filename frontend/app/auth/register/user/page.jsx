@@ -183,7 +183,7 @@ function RegisterContent() {
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
             </div>
 
-            {/* Password Field */}
+           
             {/* Password Field */}
 <div>
   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">

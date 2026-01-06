@@ -31,14 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <script
-          src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyCq7UxTWe5GUcksVgwyQf1tPjZv4l1mNaY&libraries=places`}
-          async
-        ></script>
-      </head>
-      
+    <html lang="en"> 
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

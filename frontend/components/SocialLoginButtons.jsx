@@ -4,6 +4,13 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 export default function SocialLoginButtons({ role = "USER" }) {
   const handleGoogleLogin = () => {
+    
+    console.log("🔵 [FRONTEND] SocialLoginButtons clicked");
+    console.log("🔵 [FRONTEND] Role prop received:", role);
+    console.log("🔵 [FRONTEND] BACKEND_URL:", BACKEND_URL);
+    
+    const url = `${BACKEND_URL}/api/auth/google?role=${role}`;
+    console.log("🔵 [FRONTEND] Full redirect URL:", url);
     // Pass role as state parameter to Google OAuth
     window.location.href = `${BACKEND_URL}/api/auth/google?role=${role}`;
   };

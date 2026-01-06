@@ -100,17 +100,6 @@ function HomeContent() {
         ? listingsData
         : listingsData.listings || [];
 
-      // Debug: Log first listing to verify structure
-      if (allListingsArray.length > 0) {
-        console.log("Sample listing from API:", {
-          id: allListingsArray[0].id,
-          hourlyRate: allListingsArray[0].hourlyRate,
-          discountPercent: allListingsArray[0].discountPercent,
-          durationDiscounts: allListingsArray[0].durationDiscounts,
-          bonusHoursOffer: allListingsArray[0].bonusHoursOffer,
-        });
-      }
-
       // Format all listings
       const formattedListings = allListingsArray.map(formatListing);
       setAllListings(formattedListings);

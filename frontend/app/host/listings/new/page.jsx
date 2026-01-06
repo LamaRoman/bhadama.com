@@ -51,7 +51,7 @@ export default function NewListing() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(""); // ✅ New: Upload stage tracker
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const toggleAmenity = (amenity) => {
     if (selectedAmenities.includes(amenity)) {
@@ -81,7 +81,7 @@ export default function NewListing() {
     setError("");
     setSuccess("");
     setLoading(true);
-    setUploadProgress("Creating listing..."); // ✅ Stage 1
+    setUploadProgress("Creating listing...");
 
     // Validation
     if (!form.hourlyRate && !form.halfDayRate && !form.fullDayRate) {
@@ -135,26 +135,16 @@ export default function NewListing() {
         return;
       }
 
-      // ✅ Listing created successfully
       setUploadProgress("✓ Listing created successfully!");
 
       // 2️⃣ Upload images
-      // 2️⃣ Upload images
-if (files.length > 0) {
-  setUploadProgress(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`); // ✅ Stage 2
+      if (files.length > 0) {
+        setUploadProgress(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`);
 
-  const formData = new FormData();
-  for (const file of files) {
-    formData.append("images", file);
-  }
-
-  // ✅ DEBUG: Check FormData contents
-  console.log("📸 Files to upload:", files);
-  console.log("📸 Number of files:", files.length);
-  console.log("📦 FormData entries:");
-  for (let pair of formData.entries()) {
-    console.log(`  ${pair[0]}:`, pair[1].name, `(${pair[1].size} bytes)`);
-  }
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("images", file);
+        }
 
         const uploadRes = await api(`/api/host/listings/${listingId}/images`, {
           method: "POST",
@@ -168,11 +158,9 @@ if (files.length > 0) {
           return;
         }
 
-        // ✅ Images uploaded successfully
         setUploadProgress(`✓ ${files.length} image${files.length > 1 ? 's' : ''} uploaded successfully!`);
       }
 
-      // ✅ Everything done!
       setSuccess("🎉 Listing published successfully! Redirecting...");
       setUploadProgress("");
       
@@ -180,7 +168,7 @@ if (files.length > 0) {
         router.push("/host/dashboard");
       }, 2000);
     } catch (err) {
-      console.error(err);
+      console.error("Submit error:", err.message);
       setError(err.message || "Server error, please try again");
       setLoading(false);
       setUploadProgress("");
@@ -225,7 +213,7 @@ if (files.length > 0) {
           </div>
         )}
 
-        {/* ✅ Upload Progress Indicator */}
+        {/* Upload Progress Indicator */}
         {uploadProgress && !success && (
           <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg flex items-start gap-3 animate-slide-in">
             <svg className="w-5 h-5 flex-shrink-0 mt-0.5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
@@ -552,7 +540,7 @@ if (files.length > 0) {
         </div>
       </div>
 
-      {/* ✅ Add animations */}
+      {/* Animations */}
       <style jsx>{`
         @keyframes slide-in {
           from {

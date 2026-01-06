@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row md:justify-between gap-10">
           {/* Column 1: Logo + About */}
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-white">Bhadama.com</h2>
+            <h2 className="text-2xl font-bold text-white">myBigYard.com</h2>
             <p className="mt-3 text-sm">
               Nepal’s trusted booking platform for rooms, apartments, houses,
               and short-term stays. Simple. Safe. Fast.
