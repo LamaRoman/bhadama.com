@@ -3,6 +3,8 @@ import passport from "../config/passport.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 import * as authController from "../controllers/authController.js";
 import * as userManagementController from "../controllers/userManagementController.js";
+import jwt from "jsonwebtoken"
+
 const router = express.Router();
 
 /* ==================== GOOGLE AUTH ==================== */
