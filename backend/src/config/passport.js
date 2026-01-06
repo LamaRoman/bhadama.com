@@ -13,6 +13,9 @@ passport.use(
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
+          console.log("🟡 [PASSPORT] Callback received");
+        console.log("🟡 [PASSPORT] req.query:", req.query);
+        console.log("🟡 [PASSPORT] req.query.state:", req.query.state);
         const email = profile.emails?.[0]?.value;
         const name = profile.displayName;
         const profilePhoto = profile.photos?.[0]?.value;
@@ -21,6 +24,8 @@ passport.use(
         // Get role from state parameter
         const role = req.query.state || "USER";
 
+         console.log("🟡 [PASSPORT] Final role to use:", role);
+        console.log("🟡 [PASSPORT] Email:", email);
         if (!email) {
           return done(new Error("No email found in Google profile"), null);
         }
@@ -36,6 +41,7 @@ passport.use(
         });
 
         if (user) {
+          console.log("🟡 [PASSPORT] Existing user found:", { id: user.id, role: user.role });
           // Existing user - update Google info if not already set
           if (!user.googleId) {
             user = await prisma.user.update({
@@ -48,6 +54,7 @@ passport.use(
             });
           }
         } else {
+          console.log("🟡 [PASSPORT] Creating NEW user with role:", role);
           // New user - create with the role from state
           user = await prisma.user.create({
             data: {
@@ -60,10 +67,12 @@ passport.use(
               // password is optional - don't include it
             }
           });
+          console.log("🟡 [PASSPORT] New user created:", { id: user.id, role: user.role });
         }
 
         return done(null, user);
       } catch (error) {
+        console.error("❌ [PASSPORT] Error:", error);
         console.error("Google OAuth error:", error);
         return done(error, null);
       }

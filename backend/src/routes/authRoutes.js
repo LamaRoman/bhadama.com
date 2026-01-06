@@ -14,6 +14,11 @@ const router = express.Router();
  */
 router.get("/google", (req, res, next) => {
   const role = req.query.role || "USER";
+  console.log("🔍 Initial Google auth request - Role:", role); // Add this
+  console.log("🟢 [BACKEND] /api/auth/google hit");
+  console.log("🟢 [BACKEND] req.query:", req.query);
+  console.log("🟢 [BACKEND] Role extracted:", role);
+  console.log("🟢 [BACKEND] Passing to passport with state:", role);
   
   passport.authenticate("google", {
     scope: ["profile", "email"],
