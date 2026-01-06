@@ -31,7 +31,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://mybigyard.com',
-    'https://www.mybigyard.com'
+    'https://www.mybigyard.com',
+    'https://api.mybigyard.com' 
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
