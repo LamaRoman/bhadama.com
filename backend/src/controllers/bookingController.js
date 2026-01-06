@@ -7,7 +7,9 @@ import { prisma } from "../config/prisma.js";
  */
 export const createBooking = async (req, res) => {
   try {
-    const { listingId, userId, bookingDate, startTime, endTime, guests } = req.body;
+
+    const userId = Number(req.user.userId);
+    const { listingId, bookingDate, startTime, endTime, guests } = req.body;
 
     // Get the listing to check ownership and pricing
     const listing = await prisma.listing.findUnique({
