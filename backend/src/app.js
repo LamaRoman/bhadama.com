@@ -48,16 +48,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
-// 2. Body parser - SKIP for multipart/form-data routes
-app.use((req, res, next) => {
-  // Skip JSON parsing for image upload routes
-  if (req.path.includes('/images') && req.method === 'POST') {
-    return next();
-  }
-  express.json({ limit: '10mb' })(req, res, next);
-});
-
+// 2. Body parser - Apply globally
+// ✅ FIXED: Apply express.json() to ALL routes
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Note: For image uploads, use multer middleware in specific routes
+// Multer will handle multipart/form-data and won't conflict with express.json()
 
 // 3. Initialize Passport BEFORE routes
 app.use(passport.initialize());
@@ -112,6 +109,7 @@ app.get('/health', (req, res) => {
     }
   });
 });
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Hello! myBigYard Server is working. 🏡");
@@ -136,7 +134,7 @@ setInterval(async () => {
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-console.log(`📧 Email verification: ${process.env.RESEND_API_KEY ? '✅ Enabled' : '❌ Disabled'}`);
+  console.log(`📧 Email verification: ${process.env.RESEND_API_KEY ? '✅ Enabled' : '❌ Disabled'}`);
   console.log(`📱 SMS verification (Nepal): ${process.env.SMS_NEPAL_PROVIDER || 'twilio'}`);
   console.log(`📱 SMS verification (International): ${process.env.SMS_INTERNATIONAL_PROVIDER || 'twilio'}`);
 });

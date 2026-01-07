@@ -157,57 +157,57 @@ model PlatformSettings {
 }
 
 model User {
-  id                 Int                 @id @default(autoincrement())
-  name               String
-  email              String              @unique
-  password           String?
-  role               Role                @default(USER)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  profilePhoto       String?
-  lastNameChange     DateTime?
-  bio                String?
-  isVerified         Boolean             @default(false)
-  phone              String?
-  stripeCustomerId   String?
-  riskScore          Int                 @default(0)
-  suspended          Boolean             @default(false)
-  suspendedReason    String?
-  verifiedByAdmin    Boolean             @default(false)
-  adminRole          AdminRole?
-  emailVerified      Boolean             @default(false)
-  googleId           String?             @unique
-  lastLoginAt        DateTime?
-  currentTier        TierType            @default(FREE)
-  tierExpiresAt      DateTime?
-  adminProfile       AdminProfile?
-  auditLogs          AuditLog[]          @relation("AdminAuditLogs")
-  blogComments       BlogComment[]       @relation("BlogCommentAuthor")
-  blogCommentLikes   BlogCommentLike[]   @relation("CommentLikesUser")
-  blogLikes          BlogLike[]          @relation("BlogLikesUser")
-  blogPosts          BlogPost[]          @relation("BlogAuthor")
-  bookings           Booking[]
-  contributorProfile ContributorProfile? @relation("ContributorProfile")
-  images             Image[]             @relation("UserImages")
-  listings           Listing[]
-  listingModerations ListingModeration[] @relation("AdminListingModerations")
-  receivedMessages   Message[]           @relation("ReceivedMessages")
-  sentMessages       Message[]           @relation("SentMessages")
-  notifications      Notification[]
-  adminRefunds       Refund[]            @relation("AdminRefunds")
-  reviews            Review[]
-  reviewReports      ReviewReport[]      @relation("UserReviewReports")
-  savedListings      SavedListing[]
-  subscription       HostSubscription?
-  payments           Payment[]
-  helpfulReviews     Review[]            @relation("HelpfulReviews")
-
+  id                           Int                 @id @default(autoincrement())
+  name                         String
+  email                        String              @unique
+  password                     String?
+  role                         Role                @default(USER)
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  profilePhoto                 String?
+  lastNameChange               DateTime?
+  bio                          String?
+  isVerified                   Boolean             @default(false)
+  phone                        String?
+  stripeCustomerId             String?
+  riskScore                    Int                 @default(0)
+  suspended                    Boolean             @default(false)
+  suspendedReason              String?
+  verifiedByAdmin              Boolean             @default(false)
+  adminRole                    AdminRole?
+  emailVerified                Boolean             @default(false)
+  googleId                     String?             @unique
+  lastLoginAt                  DateTime?
+  currentTier                  TierType            @default(FREE)
+  tierExpiresAt                DateTime?
+  adminProfile                 AdminProfile?
+  auditLogs                    AuditLog[]          @relation("AdminAuditLogs")
+  blogComments                 BlogComment[]       @relation("BlogCommentAuthor")
+  blogCommentLikes             BlogCommentLike[]   @relation("CommentLikesUser")
+  blogLikes                    BlogLike[]          @relation("BlogLikesUser")
+  blogPosts                    BlogPost[]          @relation("BlogAuthor")
+  bookings                     Booking[]
+  contributorProfile           ContributorProfile? @relation("ContributorProfile")
+  images                       Image[]             @relation("UserImages")
+  listings                     Listing[]
+  listingModerations           ListingModeration[] @relation("AdminListingModerations")
+  receivedMessages             Message[]           @relation("ReceivedMessages")
+  sentMessages                 Message[]           @relation("SentMessages")
+  notifications                Notification[]
+  adminRefunds                 Refund[]            @relation("AdminRefunds")
+  reviews                      Review[]
+  reviewReports                ReviewReport[]      @relation("UserReviewReports")
+  savedListings                SavedListing[]
+  subscription                 HostSubscription?
+  payments                     Payment[]
+  helpfulReviews               Review[]            @relation("HelpfulReviews")
+  verificationLogs             VerificationLog[]
   // Email Verification (3 new fields)
-  emailVerificationToken       String?   @unique
+  emailVerificationToken       String?             @unique
   emailVerificationExpiry      DateTime?
-  emailVerificationAttempts    Int       @default(0)
+  emailVerificationAttempts    Int                 @default(0)
   emailVerificationLockedUntil DateTime?
-  
+
   // Phone Verification (5 new fields)
   phoneVerified                Boolean   @default(false)
   phoneVerificationToken       String?
@@ -215,18 +215,15 @@ model User {
   phoneVerificationAttempts    Int       @default(0)
   phoneVerificationLockedUntil DateTime?
   phoneCountryCode             String?
-  
+
   // Rate Limiting for OTP (6 new fields)
-  lastEmailOtpSent             DateTime?
-  emailOtpSendCount            Int       @default(0)
-  emailOtpResetTime            DateTime?
-  lastPhoneOtpSent             DateTime?
-  phoneOtpSendCount            Int       @default(0)
-  phoneOtpResetTime            DateTime?
-  
-  
-  
-  
+  lastEmailOtpSent  DateTime?
+  emailOtpSendCount Int       @default(0)
+  emailOtpResetTime DateTime?
+  lastPhoneOtpSent  DateTime?
+  phoneOtpSendCount Int       @default(0)
+  phoneOtpResetTime DateTime?
+
   @@index([email])
   @@index([role])
 }
@@ -337,6 +334,26 @@ model PromotionRequest {
   @@index([listingId])
   @@index([hostId])
   @@index([status])
+}
+
+model VerificationLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  type         String // 'EMAIL' or 'PHONE'
+  action       String // 'SENT', 'VERIFIED', 'FAILED'
+  provider     String? // 'resend', 'twilio', etc.
+  success      Boolean  @default(false)
+  errorMessage String?  @map("error_message")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("verification_logs")
 }
 
 model Image {

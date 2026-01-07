@@ -145,6 +145,8 @@ export const register = async (req, res) => {
  */
 export const login = async (req, res) => {
   try {
+       console.log('🔍 req.body:', req.body);
+    console.log('🔍 email type:', typeof req.body?.email);
     const { email, password } = req.body;
 
     // Validate input

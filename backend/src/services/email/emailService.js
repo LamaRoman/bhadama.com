@@ -1,12 +1,14 @@
 // backend/services/email/emailService.js
 
 import { Resend } from 'resend';
+import dotenv from 'dotenv/config'
+
 
 class EmailService {
   constructor() {
     this.resend = new Resend(process.env.RESEND_API_KEY);
-    this.fromEmail = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
-    this.fromName = process.env.EMAIL_FROM_NAME || 'YourBrand';
+    this.fromEmail = process.env.EMAIL_FROM || 'verify@mybigyard.com';
+    this.fromName = process.env.EMAIL_FROM_NAME || 'mybigyard.com';
   }
 
   /**

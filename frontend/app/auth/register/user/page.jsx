@@ -82,43 +82,44 @@ function RegisterContent() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage("");
-    
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-    
-    setIsLoading(true);
+  e.preventDefault();
+  setMessage("");
+  
+  const validationErrors = validateForm();
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return;
+  }
+  
+  setIsLoading(true);
 
-    try {
-      const data = await api("/api/auth/register", {
-        method: "POST",
-        body: formData,
-      });
+  try {
+    const data = await api("/api/auth/register", {
+      method: "POST",
+      body: formData,
+    });
 
-      if (data.error) {
-        setMessage(data.error);
-      } else {
-        // Login user
-        login(data.user, data.token);
-        
-        // Show success message
-        setMessage(data.message || "Registration successful! Redirecting to email verification...");
-        
-        // Redirect to verification page after 1.5 seconds
-        setTimeout(() => {
-          router.push("/auth/verify-email");
-        }, 1500);
-      }
-    } catch (error) {
-      setMessage(error.message || "An error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
+    if (data.error) {
+      setMessage(data.error);
+    } else {
+      // ✅ FIXED: Store token and user directly
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Show success message
+      setMessage(data.message || "Registration successful! Redirecting...");
+      
+      // Redirect after 1.5 seconds - the useEffect will detect the user
+      setTimeout(() => {
+         window.location.href = "/";
+      }, 1500);
     }
-  };
+  } catch (error) {
+    setMessage(error.message || "An error occurred. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">

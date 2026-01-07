@@ -1,5 +1,6 @@
 /**
  * Validation functions for authentication routes
+ * FIXED: Added null/undefined checks before calling .trim()
  */
 
 export const validateRegistration = (data) => {
@@ -7,7 +8,7 @@ export const validateRegistration = (data) => {
   const { name, email, password, role } = data;
 
   // Name validation
-  if (!name || name.trim() === '') {
+  if (!name || typeof name !== 'string' || name.trim() === '') {
     errors.push('Name is required');
   } else if (name.trim().length < 2) {
     errors.push('Name must be at least 2 characters long');
@@ -16,14 +17,14 @@ export const validateRegistration = (data) => {
   }
 
   // Email validation
-  if (!email || email.trim() === '') {
+  if (!email || typeof email !== 'string' || email.trim() === '') {
     errors.push('Email is required');
-  } else if (!isValidEmail(email)) {
+  } else if (!isValidEmail(email.trim())) {
     errors.push('Please provide a valid email address');
   }
 
   // Password validation (only for email/password registration)
-  if (!password || password.trim() === '') {
+  if (!password || typeof password !== 'string' || password.trim() === '') {
     errors.push('Password is required for email registration');
   } else {
     if (password.length < 8) {
@@ -58,15 +59,15 @@ export const validateLogin = (data) => {
   const errors = [];
   const { email, password } = data;
 
-  // Email validation
-  if (!email || email.trim() === '') {
+  // Email validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!email || typeof email !== 'string' || email.trim() === '') {
     errors.push('Email is required');
-  } else if (!isValidEmail(email)) {
+  } else if (!isValidEmail(email.trim())) {
     errors.push('Please provide a valid email address');
   }
 
-  // Password validation
-  if (!password || password.trim() === '') {
+  // Password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!password || typeof password !== 'string' || password.trim() === '') {
     errors.push('Password is required');
   }
 
@@ -80,10 +81,10 @@ export const validatePasswordReset = (data) => {
   const errors = [];
   const { email } = data;
 
-  // Email validation
-  if (!email || email.trim() === '') {
+  // Email validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!email || typeof email !== 'string' || email.trim() === '') {
     errors.push('Email is required');
-  } else if (!isValidEmail(email)) {
+  } else if (!isValidEmail(email.trim())) {
     errors.push('Please provide a valid email address');
   }
 
@@ -97,8 +98,8 @@ export const validateNewPassword = (data) => {
   const errors = [];
   const { password, confirmPassword } = data;
 
-  // Password validation
-  if (!password || password.trim() === '') {
+  // Password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!password || typeof password !== 'string' || password.trim() === '') {
     errors.push('Password is required');
   } else {
     if (password.length < 8) {
@@ -118,8 +119,8 @@ export const validateNewPassword = (data) => {
     }
   }
 
-  // Confirm password validation
-  if (!confirmPassword || confirmPassword.trim() === '') {
+  // Confirm password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!confirmPassword || typeof confirmPassword !== 'string' || confirmPassword.trim() === '') {
     errors.push('Please confirm your password');
   } else if (password !== confirmPassword) {
     errors.push('Passwords do not match');
@@ -135,13 +136,13 @@ export const validateChangePassword = (data) => {
   const errors = [];
   const { currentPassword, newPassword, confirmPassword } = data;
 
-  // Current password validation
-  if (!currentPassword || currentPassword.trim() === '') {
+  // Current password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!currentPassword || typeof currentPassword !== 'string' || currentPassword.trim() === '') {
     errors.push('Current password is required');
   }
 
-  // New password validation
-  if (!newPassword || newPassword.trim() === '') {
+  // New password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim() === '') {
     errors.push('New password is required');
   } else {
     if (newPassword.length < 8) {
@@ -159,13 +160,13 @@ export const validateChangePassword = (data) => {
     if (!/[0-9]/.test(newPassword)) {
       errors.push('New password must contain at least one number');
     }
-    if (currentPassword === newPassword) {
+    if (currentPassword && currentPassword === newPassword) {
       errors.push('New password must be different from current password');
     }
   }
 
-  // Confirm password validation
-  if (!confirmPassword || confirmPassword.trim() === '') {
+  // Confirm password validation - CHECK FOR NULL/UNDEFINED FIRST
+  if (!confirmPassword || typeof confirmPassword !== 'string' || confirmPassword.trim() === '') {
     errors.push('Please confirm your new password');
   } else if (newPassword !== confirmPassword) {
     errors.push('New passwords do not match');
@@ -179,6 +180,7 @@ export const validateChangePassword = (data) => {
 
 // Helper function to validate email format
 function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }

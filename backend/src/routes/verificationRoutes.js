@@ -1,5 +1,3 @@
-// backend/routes/verificationRoutes.js
-
 import express from 'express';
 import { authenticate } from '../middleware/authMiddleware.js';
 import * as emailVerificationController from '../controllers/emailVerificationController.js';

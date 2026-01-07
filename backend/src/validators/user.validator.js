@@ -1,5 +1,6 @@
 /**
  * Validation functions for user-related routes
+ * FIXED: Added null/undefined checks before calling .trim()
  */
 
 export const validateProfileUpdate = (data) => {
@@ -7,8 +8,8 @@ export const validateProfileUpdate = (data) => {
   const { name, phone } = data;
 
   // Name validation (optional but if provided must be valid)
-  if (name !== undefined) {
-    if (name.trim() === '') {
+  if (name !== undefined && name !== null) {
+    if (typeof name !== 'string' || name.trim() === '') {
       errors.push('Name cannot be empty');
     } else if (name.trim().length < 2) {
       errors.push('Name must be at least 2 characters long');
@@ -18,8 +19,10 @@ export const validateProfileUpdate = (data) => {
   }
 
   // Phone validation (optional but if provided must be valid)
-  if (phone !== undefined && phone !== null && phone.trim() !== '') {
-    if (!isValidPhone(phone)) {
+  if (phone !== undefined && phone !== null) {
+    if (typeof phone !== 'string') {
+      errors.push('Phone must be a string');
+    } else if (phone.trim() !== '' && !isValidPhone(phone)) {
       errors.push('Please provide a valid phone number');
     }
   }
@@ -36,7 +39,7 @@ export const validateRoleChange = (data) => {
 
   // Role validation
   const validRoles = ['USER', 'HOST'];
-  if (!newRole) {
+  if (!newRole || typeof newRole !== 'string') {
     errors.push('New role is required');
   } else if (!validRoles.includes(newRole)) {
     errors.push('Invalid role. Must be USER or HOST');
@@ -54,7 +57,7 @@ export const validateAdminRoleChange = (data) => {
 
   // Admin role validation
   const validAdminRoles = ['SUPER_ADMIN', 'CONTENT_MANAGER', 'SUPPORT'];
-  if (!adminRole) {
+  if (!adminRole || typeof adminRole !== 'string') {
     errors.push('Admin role is required');
   } else if (!validAdminRoles.includes(adminRole)) {
     errors.push('Invalid admin role. Must be SUPER_ADMIN, CONTENT_MANAGER, or SUPPORT');
@@ -77,7 +80,7 @@ export const validateUserSuspension = (data) => {
 
   // Suspended reason validation
   if (suspended === true) {
-    if (!suspendedReason || suspendedReason.trim() === '') {
+    if (!suspendedReason || typeof suspendedReason !== 'string' || suspendedReason.trim() === '') {
       errors.push('Suspension reason is required when suspending a user');
     } else if (suspendedReason.trim().length < 10) {
       errors.push('Suspension reason must be at least 10 characters long');
@@ -125,19 +128,27 @@ export const validateUserSearch = (data) => {
   const { search, role } = data;
 
   // Search validation (optional)
-  if (search !== undefined && search !== null && search.trim() !== '') {
-    if (search.length < 2) {
-      errors.push('Search term must be at least 2 characters long');
-    } else if (search.length > 100) {
-      errors.push('Search term must not exceed 100 characters');
+  if (search !== undefined && search !== null) {
+    if (typeof search !== 'string') {
+      errors.push('Search term must be a string');
+    } else if (search.trim() !== '') {
+      if (search.length < 2) {
+        errors.push('Search term must be at least 2 characters long');
+      } else if (search.length > 100) {
+        errors.push('Search term must not exceed 100 characters');
+      }
     }
   }
 
   // Role validation (optional)
-  if (role !== undefined && role !== null && role.trim() !== '') {
-    const validRoles = ['USER', 'HOST', 'ADMIN', 'MODERATOR'];
-    if (!validRoles.includes(role)) {
-      errors.push('Invalid role filter');
+  if (role !== undefined && role !== null) {
+    if (typeof role !== 'string') {
+      errors.push('Role must be a string');
+    } else if (role.trim() !== '') {
+      const validRoles = ['USER', 'HOST', 'ADMIN', 'MODERATOR'];
+      if (!validRoles.includes(role)) {
+        errors.push('Invalid role filter');
+      }
     }
   }
 
@@ -167,6 +178,7 @@ export const validateUserId = (userId) => {
 
 // Helper function to validate phone number format
 function isValidPhone(phone) {
+  if (!phone || typeof phone !== 'string') return false;
   // Accepts formats like: +1234567890, (123) 456-7890, 123-456-7890, etc.
   const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
   return phoneRegex.test(phone.replace(/\s/g, ''));

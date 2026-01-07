@@ -1,6 +1,5 @@
 "use client";
 
-import { api } from "../../../utils/api.js";
 import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "../../../contexts/AuthContext.js";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -51,25 +50,12 @@ function LoginContent() {
     }
 
     try {
-      const data = await api("/api/auth/login", {
-        method: "POST",
-        body: { email, password }
-      });
+      // ✅ Use the login function from AuthContext - it handles the API call
+      await login(email, password);
 
-      if (data.error) {
-        setError(data.error);
-        setIsLoading(false);
-        return;
-      }
-
-      login(data.user, data.token);
-
+      // Redirect after successful login
       const redirect = searchParams.get('redirect');
-      if (redirect) {
-        router.push(redirect);
-      } else {
-        router.push("/");
-      }
+      router.push(redirect || "/");
 
     } catch (error) {
       console.error("Login error:", error);
