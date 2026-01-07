@@ -5,6 +5,9 @@ import { AlertCircle, Mail, X, CheckCircle } from 'lucide-react';
 import { api } from '@/utils/api';
 
 export default function VerificationBanner({ user, onVerified }) {
+  // ----------------------
+  // HOOKS
+  // ----------------------
   const [isVisible, setIsVisible] = useState(true);
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
@@ -14,7 +17,12 @@ export default function VerificationBanner({ user, onVerified }) {
   const [message, setMessage] = useState('Please verify your email to access all features.');
   const [messageType, setMessageType] = useState('info');
 
+  // Local flag to prevent repeated verification attempts
+  const [isVerifiedLocally, setIsVerifiedLocally] = useState(false);
+
+  // ----------------------
   // Countdown timer
+  // ----------------------
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -22,16 +30,24 @@ export default function VerificationBanner({ user, onVerified }) {
     }
   }, [countdown]);
 
-  // Don't show banner if email is verified
-  if (user?.emailVerified || user?.email_verified) {
+  // Auto-verify when OTP reaches 6 digits
+  useEffect(() => {
+    if (otp.length === 6 && showOtpInput && !isVerifying && !isVerifiedLocally) {
+      const timer = setTimeout(() => handleVerifyOtp(otp), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [otp, showOtpInput, isVerifying, isVerifiedLocally]);
+
+  // ----------------------
+  // EARLY RETURNS
+  // ----------------------
+  if (!user || user?.emailVerified || user?.email_verified || !isVisible || isVerifiedLocally) {
     return null;
   }
 
-  if (!isVisible) {
-    return null;
-  }
-
-  // Send OTP
+  // ----------------------
+  // FUNCTIONS
+  // ----------------------
   const handleSendCode = async () => {
     if (isSending || countdown > 0) return;
 
@@ -41,18 +57,14 @@ export default function VerificationBanner({ user, onVerified }) {
 
     try {
       const response = await api('/api/verification/email/send', { method: 'POST' });
-
-      setMessage(response.message || 'Verification code sent to your email!');
+      setMessage(response.message || 'Verification code sent!');
       setMessageType('success');
-      setCountdown(60);
       setShowOtpInput(true);
-
+      setCountdown(60);
     } catch (error) {
       console.error('❌ Failed to send code:', error);
-      const errorMessage = error.message || 'Failed to send verification code. Please try again.';
-      setMessage(errorMessage);
+      setMessage(error?.message || 'Failed to send verification code.');
       setMessageType('error');
-      setShowOtpInput(false);
     } finally {
       setIsSending(false);
     }
@@ -63,9 +75,10 @@ export default function VerificationBanner({ user, onVerified }) {
   };
 
   const handleVerifyOtp = async (otpValue) => {
-    if (!otpValue || otpValue.length !== 6) {
-      return;
-    }
+    if (!otpValue || otpValue.length !== 6) return;
+
+    // Prevent duplicate verification attempts
+    if (isVerifying || isVerifiedLocally) return;
 
     setIsVerifying(true);
     setMessage('Verifying...');
@@ -77,36 +90,47 @@ export default function VerificationBanner({ user, onVerified }) {
         body: { otp: otpValue },
       });
 
-      setMessage(response.message || 'Email verified successfully! ✓');
-      setMessageType('success');
+      // Treat "already verified" as success
+      if (response.verified || response.success) {
+        setMessage('✅ Email verified successfully!');
+        setMessageType('success');
+        setIsVerifiedLocally(true); // Mark locally verified
+        setShowOtpInput(false);
 
-      if (onVerified) setTimeout(() => onVerified(), 1500);
-      setTimeout(() => setIsVisible(false), 2000);
-
+        if (onVerified) setTimeout(() => onVerified(), 1000);
+        setTimeout(() => setIsVisible(false), 3500);
+      } else {
+        // Should not happen, but fallback
+        setMessage(response.message || 'Verification failed');
+        setMessageType('error');
+      }
     } catch (error) {
       console.error('❌ Verification failed:', error);
-      let errorMessage = error.message || 'Invalid verification code. Please try again.';
-      setMessage(errorMessage);
-      setMessageType('error');
-      setOtp('');
+
+      // Treat "already verified" errors as success
+      if (error?.error === 'Email already verified' || error?.verified) {
+        setMessage('✅ Email already verified!');
+        setMessageType('success');
+        setIsVerifiedLocally(true);
+        setShowOtpInput(false);
+
+        if (onVerified) setTimeout(() => onVerified(), 1000);
+        setTimeout(() => setIsVisible(false), 1500);
+      } else {
+        setMessage(error?.message || 'Invalid code. Try again.');
+        setMessageType('error');
+        setOtp('');
+      }
     } finally {
       setIsVerifying(false);
     }
   };
 
-  // Auto-verify when OTP reaches 6 digits (with 300ms delay for better UX)
-  useEffect(() => {
-    if (otp.length === 6 && !isVerifying) {
-      // Small delay so user can see they've completed typing
-      const timer = setTimeout(() => {
-        handleVerifyOtp(otp);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [otp]);
-
   const handleDismiss = () => setIsVisible(false);
 
+  // ----------------------
+  // JSX
+  // ----------------------
   return (
     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg shadow-sm">
       <div className="flex items-start justify-between">
@@ -136,13 +160,11 @@ export default function VerificationBanner({ user, onVerified }) {
                   onClick={handleVerifyNowClick}
                   disabled={isSending}
                   className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm transition-colors duration-150
-                    ${isSending 
-                      ? 'bg-yellow-400 text-white cursor-wait' 
-                      : 'bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700'
-                    }`}
+                    ${isSending ? 'bg-yellow-400 text-white cursor-wait' : 'bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700'}
+                  `}
                 >
                   <Mail className="h-4 w-4 mr-2" />
-                  {isSending ? 'Sending Code...' : 'Verify Now'}
+                  {isSending ? 'Sending...' : 'Verify Now'}
                 </button>
               </div>
             ) : (
@@ -160,17 +182,11 @@ export default function VerificationBanner({ user, onVerified }) {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     placeholder="000000"
-                    className="w-full max-w-xs px-4 py-3 border-2 border-yellow-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-center text-2xl tracking-[0.5em] font-mono"
+                    className="w-full max-w-xs px-4 py-3 border-2 border-yellow-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-center text-2xl tracking-[0.5em] font-mono"
                     disabled={isVerifying}
                     autoFocus
                     autoComplete="one-time-code"
                   />
-                  {isVerifying && (
-                    <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
-                      <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                      Verifying your code...
-                    </p>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -189,7 +205,7 @@ export default function VerificationBanner({ user, onVerified }) {
                 </div>
 
                 <p className="text-xs text-yellow-700">
-                  💡 Code will verify automatically when you enter all 6 digits • Check spam folder if not received
+                  💡 Code will verify automatically when you enter all 6 digits.
                 </p>
               </div>
             )}
