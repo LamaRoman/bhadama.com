@@ -44,40 +44,25 @@ export const register = async (req, res) => {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      // Check if it's a Google-only account
       if (existingUser.googleId && !existingUser.password) {
         return res.status(400).json({ 
           error: "An account with this email already exists. Please sign in with Google." 
         });
       }
-      
       return res.status(400).json({ error: "Email already registered" });
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ============================================
-    // Generate OTP for email verification
-    // ============================================
-    const otp = otpUtils.generateOTP();
-    const hashedOTP = await otpUtils.hashOTP(otp);
-    const expiryTime = otpUtils.getExpiryTime();
-
-    // Create user with verification token
+    // Create user WITHOUT OTP fields
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role: role === "HOST" ? "HOST" : "USER",
-        emailVerified: false,
-        // Email verification fields
-        emailVerificationToken: hashedOTP,
-        emailVerificationExpiry: expiryTime,
-        lastEmailOtpSent: new Date(),
-        emailOtpSendCount: 1,
-        emailOtpResetTime: otpUtils.getResetTime(),
+        emailVerified: false, // Important
       },
     });
 
@@ -88,28 +73,12 @@ export const register = async (req, res) => {
       emailVerified: user.emailVerified 
     });
 
-    // ============================================
-    // Send verification email
-    // ============================================
-    let emailSent = false;
-    try {
-      await emailService.sendVerificationOTP(user.email, otp, user.name);
-      console.log(`✅ Verification email sent to ${user.email}`);
-      emailSent = true;
-    } catch (emailError) {
-      console.error('❌ Failed to send verification email:', emailError);
-      // Don't fail registration if email fails - user can request resend later
-    }
-
     // Generate JWT
     const token = generateToken(user);
-    console.log("🎫 JWT token generated");
-    
-    // Prepare response
-    const responseData = {
-      message: emailSent 
-        ? "Registration successful! Please check your email for verification code."
-        : "Registration successful! Please request a verification code.",
+
+    // Send response
+    return res.status(201).json({
+      message: "Registration successful! Please verify your email to continue.",
       token,
       user: {
         id: user.id.toString(),
@@ -120,25 +89,17 @@ export const register = async (req, res) => {
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
       },
-      verification: {
-        emailSent: emailSent,
-        maskedEmail: otpUtils.maskEmail(user.email),
-        expiresIn: otpUtils.otpExpiryMinutes,
-      }
-    };
-
-    // Send JSON response
-    return res.status(201).json(responseData);
+    });
 
   } catch (error) {
     console.error("Register error:", error.message);
-
     return res.status(500).json({
       error: "Registration failed",
       details: error instanceof Error ? error.message : String(error),
     });
   }
 };
+
 
 /**
  * Login user with email/password

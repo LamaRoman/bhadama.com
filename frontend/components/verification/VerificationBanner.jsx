@@ -6,12 +6,12 @@ import { api } from '@/utils/api';
 
 export default function VerificationBanner({ user, onVerified }) {
   const [isVisible, setIsVisible] = useState(true);
-  const [showOtpInput, setShowOtpInput] = useState(true); // ✅ Start with true since code was sent during registration
+  const [showOtpInput, setShowOtpInput] = useState(false); // ❌ Start hidden
   const [otp, setOtp] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [countdown, setCountdown] = useState(60); // ✅ Start with 60s countdown
-  const [message, setMessage] = useState('A verification code was sent to your email during registration.'); // ✅ Initial message
+  const [countdown, setCountdown] = useState(0); // ❌ Start at 0
+  const [message, setMessage] = useState('Please verify your email to access all features.'); // ✅ Initial message
   const [messageType, setMessageType] = useState('info');
 
   // Countdown timer
@@ -31,6 +31,7 @@ export default function VerificationBanner({ user, onVerified }) {
     return null;
   }
 
+  // Send OTP
   const handleSendCode = async () => {
     if (isSending || countdown > 0) return;
 
@@ -39,37 +40,18 @@ export default function VerificationBanner({ user, onVerified }) {
     setMessageType('info');
 
     try {
-      const response = await api('/api/verification/email/send', {
-        method: 'POST',
-      });
-      
-      console.log('📤 Response:', response);
+      const response = await api('/api/verification/email/send', { method: 'POST' });
 
       setMessage(response.message || 'Verification code sent to your email!');
       setMessageType('success');
       setCountdown(60);
-      setShowOtpInput(true);
+      setShowOtpInput(true); // show input after sending
 
     } catch (error) {
       console.error('❌ Failed to send code:', error);
-
-      // Extract error message from the thrown error
       const errorMessage = error.message || 'Failed to send verification code. Please try again.';
-      
-      // Check if it's a rate limit error
-      if (errorMessage.includes('wait') || errorMessage.includes('seconds')) {
-        // Try to extract number of seconds from message
-        const secondsMatch = errorMessage.match(/(\d+)\s*seconds?/i);
-        const remaining = secondsMatch ? parseInt(secondsMatch[1]) : 60;
-        
-        setCountdown(remaining);
-        setMessage(errorMessage);
-        setMessageType('info');
-        setShowOtpInput(true);
-      } else {
-        setMessage(errorMessage);
-        setMessageType('error');
-      }
+      setMessage(errorMessage);
+      setMessageType('error');
     } finally {
       setIsSending(false);
     }
@@ -92,25 +74,16 @@ export default function VerificationBanner({ user, onVerified }) {
         method: 'POST',
         body: { otp },
       });
-      
+
       setMessage(response.message || 'Email verified successfully!');
       setMessageType('success');
-      
-      if (onVerified) {
-        setTimeout(() => {
-          onVerified();
-        }, 1500);
-      }
 
-      setTimeout(() => {
-        setIsVisible(false);
-      }, 2000);
+      if (onVerified) setTimeout(() => onVerified(), 1500);
+      setTimeout(() => setIsVisible(false), 2000);
 
     } catch (error) {
       console.error('❌ Verification failed:', error);
-      
       let errorMessage = error.message || 'Invalid verification code. Please try again.';
-      
       setMessage(errorMessage);
       setMessageType('error');
       setOtp('');
@@ -119,9 +92,7 @@ export default function VerificationBanner({ user, onVerified }) {
     }
   };
 
-  const handleDismiss = () => {
-    setIsVisible(false);
-  };
+  const handleDismiss = () => setIsVisible(false);
 
   return (
     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg shadow-sm">
@@ -129,9 +100,7 @@ export default function VerificationBanner({ user, onVerified }) {
         <div className="flex items-start flex-1">
           <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-yellow-800">
-              Verify Your Email Address
-            </h3>
+            <h3 className="text-sm font-medium text-yellow-800">Verify Your Email Address</h3>
             <p className="mt-1 text-sm text-yellow-700">
               Please verify <strong>{user?.email}</strong> to access all features and secure your account.
             </p>
@@ -148,21 +117,15 @@ export default function VerificationBanner({ user, onVerified }) {
               </div>
             )}
 
+            {/* Show "Verify Now" button if OTP input is hidden */}
             {!showOtpInput ? (
               <div className="mt-4">
                 <button
-                  onClick={handleSendCode}
-                  disabled={isSending || countdown > 0}
-                  className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm
-                    ${countdown > 0 || isSending
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700'
-                    } transition-colors duration-150`}
+                  onClick={() => setShowOtpInput(true)}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700 transition-colors duration-150"
                 >
                   <Mail className="h-4 w-4 mr-2" />
-                  {isSending ? 'Sending...' : 
-                   countdown > 0 ? `Wait ${countdown}s` : 
-                   'Send Verification Code'}
+                  Verify Now
                 </button>
               </div>
             ) : (
