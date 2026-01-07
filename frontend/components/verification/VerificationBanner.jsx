@@ -39,7 +39,7 @@ export default function VerificationBanner({ user, onVerified }) {
     setMessageType('info');
 
     try {
-      const response = await api('/api/verification/resend-email-otp', {
+      const response = await api('/api/verification/send', {
         method: 'POST',
       });
       
@@ -88,7 +88,7 @@ export default function VerificationBanner({ user, onVerified }) {
     setMessage('');
 
     try {
-      const response = await api('/api/verification/verify-email', {
+      const response = await api('/api/verification/email/verify', {
         method: 'POST',
         body: { otp },
       });
