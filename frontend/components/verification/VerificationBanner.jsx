@@ -39,7 +39,7 @@ export default function VerificationBanner({ user, onVerified }) {
     setMessageType('info');
 
     try {
-      const response = await api('/api/verification/send', {
+      const response = await api('/api/verification/email/send', {
         method: 'POST',
       });
       
