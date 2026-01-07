@@ -242,14 +242,6 @@ function RegisterContent() {
               </div>
             </div>
 
-            {/* Host Notice */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-              <p className="text-sm text-emerald-800">
-                <strong>📧 Email verification required</strong><br />
-                You'll need to verify your email before creating listings.
-              </p>
-            </div>
-
             {/* Terms */}
             <div className="flex items-start">
               <input
