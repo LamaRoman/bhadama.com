@@ -313,8 +313,16 @@ export async function changePassword(req, res) {
       },
     });
 
+      // Send confirmation email
+    try {
+      await emailService.sendPasswordChangeConfirmation(user.email, user.name);
+    } catch (emailError) {
+      console.error("Failed to send confirmation email:", emailError);
+      // Don't fail the password change if email fails
+    }
     // Optional: Log password change for security audit
     console.log(`Password changed successfully for user: ${user.email} (ID: ${userId})`);
+
 
     res.json({ message: "Password changed successfully" });
   } catch (err) {

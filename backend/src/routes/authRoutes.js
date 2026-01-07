@@ -112,4 +112,8 @@ router.put("/admin/change-role/:userId", authenticate, userManagementController.
  */
 router.get("/admin/users", authenticate, userManagementController.getUsersList);
 
+// Forgot password routes
+router.post("/forgot-password",authController.forgotPassword);
+router.get("/reset-password/:token",authController.verifyResetToken);
+router.post("/reset-password",authController.resetPassword);
 export default router;

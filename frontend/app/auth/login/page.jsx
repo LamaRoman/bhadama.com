@@ -125,9 +125,7 @@ function LoginContent() {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
-                  Forgot password?
-                </Link>
+                
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -195,6 +193,14 @@ function LoginContent() {
                 'Sign in'
               )}
             </button>
+            <div className="text-center">
+  <Link
+    href="/auth/forgot-password"
+    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+  >
+    Forgot Password?
+  </Link>
+</div>
           </form>
 
           {/* Sign Up Link */}

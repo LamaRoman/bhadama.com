@@ -3,8 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../config/prisma.js";
 import { validateRegistration, validateLogin } from "../validators/auth.validator.js";
 import emailService from "../services/email/emailService.js";
-import otpUtils from "../../utils/otpUtils.js";
-
+import crypto from "crypto";
 // Add BigInt serialization support
 BigInt.prototype.toJSON = function() {
   return this.toString();
@@ -234,3 +233,171 @@ export const googleCallback = (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=auth_failed`);
   }
 };
+
+// Forgot password routes
+export async function forgotPassword(req,res){
+  try{
+    const {email}= req.body;
+
+    if(!email){
+      return res.status(400).json({
+        error:"Email is required"});
+      }
+
+      //Find user by email
+      const user = await prisma.user.findUnique({
+        where:{email:email.toLowerCase().trim()}
+      });
+
+      //Always return success to prevent email enumeration
+      //(Don't reveal if email exists or not)
+      if(!user){
+        return res.json({
+          message:"If the email exists, a password reset link has been sent"
+        })
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenExpiry = new Date(Date.now()+60*60*1000)// 1 hour
+
+      // Hash token before storing (security best practice)
+      const hashedToken = crypto
+          .createHash("sha256")
+          .update(resetToken)
+          .digest("hex");
+      
+      // Save token to database
+      await prisma.user.update({
+        where:{id:user.id},
+        data:{
+          resetPasswordToken:hashedToken,
+          resetPasswordExpires:resetTokenExpiry,
+        }
+      })  
+      
+      // Create reset URL
+      const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
+
+      // Send email
+      await emailService.sendPasswordResetEmail(user.email,user.name,resetUrl);
+
+      res.json({
+        message:"If the email exists, a password reset link has been sent",
+      })
+  
+    }catch(error){
+      console.error("FORGOT PASSWORD ERROR ",error);
+      res.status(500).json({error:"Failed to process request"});
+    }
+}
+
+// Verify reset token
+export async function verifyResetToken(req,res){
+  try{
+    const{token} = req.params;
+
+    if(!token){
+      return res.status(400).json({error:"Token is required"})
+    }
+
+    // Hash the token to compare with database
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with valid token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: {
+          gt: new Date(), // Token not expired
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    });
+if (!user) {
+      return res.status(400).json({
+        error: "Invalid or expired reset token",
+        valid: false,
+      });
+    }
+
+    res.json({
+      valid: true,
+      email: user.email,
+    });
+
+  }catch (error){
+    console.error("VERIFY TOKEN ERROR: ",error);
+    res.status(500).json({error:"Failed to verify token"})
+  }
+}
+
+// Reset password
+export async function resetPassword(req, res) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        error: "Token and new password are required",
+      });
+    }
+
+    // Validate password
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long",
+      });
+    }
+    if (newPassword.length > 128) {
+      return res.status(400).json({
+        error: "Password must be less than 128 characters",
+      });
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        error: "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+      });
+    }
+    // Hash the token
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with valid token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+    if (!user) {
+      return res.status(400).json({
+        error: "Invalid or expired reset token",
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+    res.json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.error("RESET PASSWORD ERROR:", error);
+    res.status(500).json({ error: "Failed to reset password" });
+  }
+}
