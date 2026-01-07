@@ -224,6 +224,9 @@ model User {
   phoneOtpSendCount Int       @default(0)
   phoneOtpResetTime DateTime?
 
+  resetPasswordToken String?  @unique
+  resetPasswordExpires  DateTime?
+
   @@index([email])
   @@index([role])
 }
