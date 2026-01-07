@@ -6,12 +6,12 @@ import { api } from '@/utils/api';
 
 export default function VerificationBanner({ user, onVerified }) {
   const [isVisible, setIsVisible] = useState(true);
-  const [showOtpInput, setShowOtpInput] = useState(false); // ❌ Start hidden
+  const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [countdown, setCountdown] = useState(0); // ❌ Start at 0
-  const [message, setMessage] = useState('Please verify your email to access all features.'); // ✅ Initial message
+  const [countdown, setCountdown] = useState(0);
+  const [message, setMessage] = useState('Please verify your email to access all features.');
   const [messageType, setMessageType] = useState('info');
 
   // Countdown timer
@@ -36,7 +36,7 @@ export default function VerificationBanner({ user, onVerified }) {
     if (isSending || countdown > 0) return;
 
     setIsSending(true);
-    setMessage('');
+    setMessage('Sending verification code...');
     setMessageType('info');
 
     try {
@@ -45,37 +45,39 @@ export default function VerificationBanner({ user, onVerified }) {
       setMessage(response.message || 'Verification code sent to your email!');
       setMessageType('success');
       setCountdown(60);
-      setShowOtpInput(true); // show input after sending
+      setShowOtpInput(true);
 
     } catch (error) {
       console.error('❌ Failed to send code:', error);
       const errorMessage = error.message || 'Failed to send verification code. Please try again.';
       setMessage(errorMessage);
       setMessageType('error');
+      setShowOtpInput(false);
     } finally {
       setIsSending(false);
     }
   };
 
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    
-    if (!otp || otp.length !== 6) {
-      setMessage('Please enter a valid 6-digit code');
-      setMessageType('error');
+  const handleVerifyNowClick = async () => {
+    await handleSendCode();
+  };
+
+  const handleVerifyOtp = async (otpValue) => {
+    if (!otpValue || otpValue.length !== 6) {
       return;
     }
 
     setIsVerifying(true);
-    setMessage('');
+    setMessage('Verifying...');
+    setMessageType('info');
 
     try {
       const response = await api('/api/verification/email/verify', {
         method: 'POST',
-        body: { otp },
+        body: { otp: otpValue },
       });
 
-      setMessage(response.message || 'Email verified successfully!');
+      setMessage(response.message || 'Email verified successfully! ✓');
       setMessageType('success');
 
       if (onVerified) setTimeout(() => onVerified(), 1500);
@@ -91,6 +93,17 @@ export default function VerificationBanner({ user, onVerified }) {
       setIsVerifying(false);
     }
   };
+
+  // Auto-verify when OTP reaches 6 digits (with 300ms delay for better UX)
+  useEffect(() => {
+    if (otp.length === 6 && !isVerifying) {
+      // Small delay so user can see they've completed typing
+      const timer = setTimeout(() => {
+        handleVerifyOtp(otp);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [otp]);
 
   const handleDismiss = () => setIsVisible(false);
 
@@ -117,19 +130,23 @@ export default function VerificationBanner({ user, onVerified }) {
               </div>
             )}
 
-            {/* Show "Verify Now" button if OTP input is hidden */}
             {!showOtpInput ? (
               <div className="mt-4">
                 <button
-                  onClick={() => setShowOtpInput(true)}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700 transition-colors duration-150"
+                  onClick={handleVerifyNowClick}
+                  disabled={isSending}
+                  className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm transition-colors duration-150
+                    ${isSending 
+                      ? 'bg-yellow-400 text-white cursor-wait' 
+                      : 'bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700'
+                    }`}
                 >
                   <Mail className="h-4 w-4 mr-2" />
-                  Verify Now
+                  {isSending ? 'Sending Code...' : 'Verify Now'}
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3">
                 <div>
                   <label htmlFor="otp" className="block text-sm font-medium text-yellow-800 mb-2">
                     Enter the 6-digit code sent to your email
@@ -148,22 +165,15 @@ export default function VerificationBanner({ user, onVerified }) {
                     autoFocus
                     autoComplete="one-time-code"
                   />
+                  {isVerifying && (
+                    <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
+                      <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                      Verifying your code...
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <button
-                    type="submit"
-                    disabled={isVerifying || otp.length !== 6}
-                    className={`flex-1 inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium rounded-md shadow-sm
-                      ${isVerifying || otp.length !== 6
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
-                      } transition-colors duration-150`}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    {isVerifying ? 'Verifying...' : 'Verify Email'}
-                  </button>
-
                   <button
                     type="button"
                     onClick={handleSendCode}
@@ -174,14 +184,14 @@ export default function VerificationBanner({ user, onVerified }) {
                         : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 active:bg-yellow-300'
                       } transition-colors duration-150`}
                   >
-                    {countdown > 0 ? `${countdown}s` : 'Resend'}
+                    {countdown > 0 ? `Resend in ${countdown}s` : isSending ? 'Sending...' : 'Resend Code'}
                   </button>
                 </div>
 
                 <p className="text-xs text-yellow-700">
-                  💡 Didn't receive the code? Check your spam folder or click <strong>Resend</strong> after the timer expires.
+                  💡 Code will verify automatically when you enter all 6 digits • Check spam folder if not received
                 </p>
-              </form>
+              </div>
             )}
           </div>
         </div>
