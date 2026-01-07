@@ -217,10 +217,10 @@ export default function ProfilePage() {
     try {
       const response = await api("/api/users/change-password", {
         method: "PUT",
-        body: JSON.stringify({
+        body: {
           currentPassword: passwords.currentPassword,
           newPassword: passwords.newPassword,
-        }),
+        },
       });
 
       if (response.error) {
@@ -503,21 +503,24 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwords.newPassword}
-                  onChange={(e) =>
-                    setPasswords({ ...passwords, newPassword: e.target.value })
-                  }
-                  placeholder="Enter new password (min. 6 characters)"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
-                  required
-                />
-              </div>
+             <div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    New Password
+  </label>
+  <input
+    type="password"
+    value={passwords.newPassword}
+    onChange={(e) =>
+      setPasswords({ ...passwords, newPassword: e.target.value })
+    }
+    placeholder="Enter new password"
+    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
+    required
+  />
+  <p className="mt-2 text-xs text-gray-500">
+    Must be 6-128 characters with at least one uppercase letter, one lowercase letter, and one number
+  </p>
+</div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">

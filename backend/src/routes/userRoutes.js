@@ -28,4 +28,8 @@ router.put("/change-password", authenticate, controller.changePassword);
 // Delete account
 router.delete("/", authenticate, controller.deleteUser);
 
+// Change password
+router.delete("/",authenticate,controller.deleteUser);
+
+
 export default router;

@@ -233,7 +233,11 @@ export async function removeProfilePhoto(req, res) {
 export async function changePassword(req, res) {
   try {
     const userId = req.user.userId;
-    const { currentPassword, newPassword } = req.body;
+    let { currentPassword, newPassword } = req.body;
+
+    // Trim whitespace from passwords
+    currentPassword = currentPassword?.trim();
+    newPassword = newPassword?.trim();
 
     // Validate input
     if (!currentPassword || !newPassword) {
@@ -242,15 +246,43 @@ export async function changePassword(req, res) {
       });
     }
 
+    // Check minimum length
     if (newPassword.length < 6) {
       return res.status(400).json({
         error: "New password must be at least 6 characters long",
       });
     }
 
+    // Check maximum length (prevent DoS attacks with very long passwords)
+    if (newPassword.length > 128) {
+      return res.status(400).json({
+        error: "New password must be less than 128 characters",
+      });
+    }
+
+    // Password strength validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        error: "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+      });
+    }
+
+    // Check if new password is same as current password
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        error: "New password must be different from current password",
+      });
+    }
+
     // Get user with password
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+        email: true, // Optional: for logging purposes
+      },
     });
 
     if (!user) {
@@ -275,8 +307,14 @@ export async function changePassword(req, res) {
     // Update password
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword },
+      data: { 
+        password: hashedPassword,
+        updatedAt: new Date(),
+      },
     });
+
+    // Optional: Log password change for security audit
+    console.log(`Password changed successfully for user: ${user.email} (ID: ${userId})`);
 
     res.json({ message: "Password changed successfully" });
   } catch (err) {
