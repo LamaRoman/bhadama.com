@@ -10,13 +10,13 @@ import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, user } = useAuth();
+  const { loginWithOAuth, user } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
-    role: "HOST"  // HOST role
+    role: "HOST"
   });
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +39,6 @@ function RegisterContent() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     
-    // Update password strength indicators
     if (name === "password") {
       setPasswordStrength({
         hasMinLength: value.length >= 8,
@@ -82,41 +81,42 @@ function RegisterContent() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setMessage("");
-  
-  const validationErrors = validateForm();
-  if (Object.keys(validationErrors).length > 0) {
-    setErrors(validationErrors);
-    return;
-  }
-  
-  setIsLoading(true);
-
-  try {
-    const data = await api("/api/auth/register", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (data.error) {
-      setMessage(data.error);
-    } else {
-      loginWithOAuth(data.user, data.token);
-      // Show success message
-      setMessage(data.message || "Registration successful! Redirecting...");
-      
-      // Redirect after 1.5 seconds - the useEffect will detect the user
-      setTimeout(() => {
-        router.push("/");
-      }, 1500);
+    e.preventDefault();
+    setMessage("");
+    
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
     }
-  } catch (error) {
-    setMessage(error.message || "An error occurred. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+    
+    setIsLoading(true);
+
+    try {
+      const data = await api("/api/auth/register", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (data.error) {
+        setMessage(data.error);
+      } else {
+        // ✅ FIXED: Update Auth Context immediately
+        loginWithOAuth(data.user, data.token);
+        
+        setMessage(data.message || "Registration successful! Redirecting...");
+        
+        // Redirect after short delay
+        setTimeout(() => {
+          router.push("/");
+        }, 1000);
+      }
+    } catch (error) {
+      setMessage(error.message || "An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-teal-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -186,7 +186,6 @@ function RegisterContent() {
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
             </div>
 
-           
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -259,7 +258,7 @@ function RegisterContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 transition-all"
             >
               {isLoading ? "Creating account..." : "Create Host Account"}
             </button>

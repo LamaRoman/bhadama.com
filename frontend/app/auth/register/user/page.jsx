@@ -10,7 +10,7 @@ import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, user } = useAuth();
+  const { loginWithOAuth, user } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
