@@ -224,7 +224,9 @@ export const googleCallback = (req, res) => {
       userId: user.id.toString(),
       name: user.name || "",
       email: user.email,
-      role: user.role
+      role: user.role,
+      emailVerified: user.emailVerified || true, // ✅ ADD THIS
+      phoneVerified: user.phoneVerified || false // ✅ ADD THIS TOO
     });
     
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);

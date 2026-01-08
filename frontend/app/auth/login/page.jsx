@@ -30,11 +30,12 @@ function LoginContent() {
     }
   }, [searchParams]);
 
-  // Redirect if already logged in
+  // ✅ FIXED: Redirect if already logged in (don't call login again)
   useEffect(() => {
     if (user) {
       const redirect = searchParams.get("redirect") || "/";
-      router.push(redirect);
+      console.log("✅ User already logged in, redirecting to:", redirect);
+      router.replace(redirect); // Use replace instead of push
     }
   }, [user, router, searchParams]);
 
@@ -63,6 +64,18 @@ function LoginContent() {
       setIsLoading(false);
     }
   };
+
+  // ✅ Don't render form if user is already logged in
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-auto bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">    
@@ -194,13 +207,13 @@ function LoginContent() {
               )}
             </button>
             <div className="text-center">
-  <Link
-    href="/auth/forgot-password"
-    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-  >
-    Forgot Password?
-  </Link>
-</div>
+              <Link
+                href="/auth/forgot-password"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+              >
+                Forgot Password?
+              </Link>
+            </div>
           </form>
 
           {/* Sign Up Link */}

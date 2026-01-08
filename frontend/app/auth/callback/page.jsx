@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -7,7 +6,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { loginWithOAuth } = useAuth();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
@@ -19,6 +18,8 @@ function CallbackContent() {
     const name = searchParams.get("name");
     const email = searchParams.get("email");
     const role = searchParams.get("role");
+    const emailVerified = searchParams.get("emailVerified");
+    const phoneVerified = searchParams.get("phoneVerified");
     const error = searchParams.get("error");
 
     // Handle OAuth errors
@@ -32,18 +33,20 @@ function CallbackContent() {
     if (token && userId) {
       hasProcessed.current = true;
 
-      // Create user object
+      // Create user object with all fields
       const user = {
         id: parseInt(userId),
         name: decodeURIComponent(name || ""),
         email: decodeURIComponent(email || ""),
         role: role || "USER",
+        emailVerified: emailVerified === "true", // ✅ Convert string to boolean
+        phoneVerified: phoneVerified === "true", // ✅ Convert string to boolean
       };
 
       console.log("✅ Google OAuth Success:", { user, role });
 
-      // Login (this should handle localStorage and state)
-      login(user, token);
+      // Use loginWithOAuth for OAuth flow
+      loginWithOAuth(user, token);
 
       // Redirect based on role
       setTimeout(() => {
@@ -55,12 +58,11 @@ function CallbackContent() {
           router.push("/");
         }
       }, 500); // Small delay to ensure login completes
-
     } else {
       console.error("Missing token or userId in callback");
       router.push("/auth/login?error=invalid_callback");
     }
-  }, [searchParams, router, login]); // ✅ Include all dependencies
+  }, [searchParams, router, loginWithOAuth]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

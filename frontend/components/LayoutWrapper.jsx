@@ -4,11 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import VerificationBanner from '@/components/verification/VerificationBanner';
 import { usePathname } from 'next/navigation';
 
-export default function LayoutWrapper({ children }) {
+export default function checkingReviewEligibilityapper({ children }) {
   const { user, refreshUser } = useAuth();
   const pathname = usePathname();
 
-  console.log('🔍 LayoutWrapper Debug:', {
+  console.log('🔍 checkingReviewEligibilityapper Debug:', {
     userExists: !!user,
     emailVerified: user?.emailVerified,
     pathname,
