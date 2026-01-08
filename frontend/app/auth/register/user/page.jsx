@@ -102,10 +102,8 @@ function RegisterContent() {
     if (data.error) {
       setMessage(data.error);
     } else {
-      // ✅ FIXED: Store token and user directly
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
+     // ✅ NEW - Use loginWithOAuth
+loginWithOAuth(data.user, data.token);
       // Show success message
       setMessage(data.message || "Registration successful! Redirecting...");
       
