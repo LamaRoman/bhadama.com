@@ -2,7 +2,6 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { prisma } from "./prisma.js";
 
-// Google Strategy
 passport.use(
   new GoogleStrategy(
     {
@@ -33,42 +32,48 @@ passport.use(
         });
 
         if (user) {
-          // Existing user - update Google info if not already set
-          if (!user.googleId) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: {
-                googleId,
-                profilePhoto: user.profilePhoto || profilePhoto,
-                emailVerified: true,
-              },
-            });
-          }
-          console.log("✅ Existing user logged in:", { id: user.id, role: user.role });
+          // Existing user - ALWAYS update emailVerified to true for Google users
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              googleId: googleId, // Ensure googleId is set
+              profilePhoto: user.profilePhoto || profilePhoto,
+              emailVerified: true, // ✅ ALWAYS set to true
+              lastLoginAt: new Date(),
+            },
+          });
+          console.log("✅ Existing user logged in:", { 
+            id: user.id, 
+            role: user.role, 
+            emailVerified: user.emailVerified 
+          });
         } else {
-          // New user - create with the role from state
+          // New user - create with emailVerified: true
           user = await prisma.user.create({
             data: {
               email,
               name,
               googleId,
               profilePhoto,
-              emailVerified: true,
+              emailVerified: true, // ✅ Set to true
               role: role === "HOST" ? "HOST" : "USER",
-              // password is optional - don't include it
             },
           });
-          console.log("✅ New user created:", { id: user.id, role: user.role });
+          console.log("✅ New user created:", { 
+            id: user.id, 
+            role: user.role,
+            emailVerified: user.emailVerified 
+          });
         }
 
         return done(null, user);
       } catch (error) {
+        console.error("❌ Passport Google Strategy error:", error);
         return done(error, null);
       }
     }
   )
 );
-
 // Serialize user for session
 passport.serializeUser((user, done) => {
   done(null, user.id);

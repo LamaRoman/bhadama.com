@@ -217,21 +217,37 @@ export const getCurrentUser = async (req, res) => {
 export const googleCallback = (req, res) => {
   try {
     const user = req.user; // From passport
+
+    if (!user) {
+      console.error("❌ No user returned from Google OAuth");
+      return res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=auth_failed`);
+    }
+
+    console.log("🔍 User from passport:", {
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      googleId: user.googleId
+    });
+
     const token = generateToken(user);
     
+    // ✅ For Google OAuth, emailVerified should ALWAYS be true
     const params = new URLSearchParams({
       token,
       userId: user.id.toString(),
-      name: user.name || "",
-      email: user.email,
+      name: encodeURIComponent(user.name || ""),
+      email: encodeURIComponent(user.email),
       role: user.role,
-      emailVerified: user.emailVerified || true, // ✅ ADD THIS
-      phoneVerified: user.phoneVerified || false // ✅ ADD THIS TOO
+      emailVerified: "true", // ✅ FORCE to "true" for all Google users
+      phoneVerified: user.phoneVerified ? "true" : "false",
     });
+    
+    console.log("✅ Google OAuth redirect params:", Object.fromEntries(params));
     
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);
   } catch (error) {
-    console.error("Google callback error:", error.message);
+    console.error("❌ Google callback error:", error.message);
     res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=auth_failed`);
   }
 };

@@ -22,6 +22,17 @@ function CallbackContent() {
     const phoneVerified = searchParams.get("phoneVerified");
     const error = searchParams.get("error");
 
+    console.log("🔍 Callback URL params:", {
+      token: token ? "present" : "missing",
+      userId,
+      name,
+      email,
+      role,
+      emailVerified, // This should be the string "true" or "false"
+      phoneVerified,
+      error
+    });
+
     // Handle OAuth errors
     if (error) {
       console.error("OAuth error:", error);
@@ -43,7 +54,8 @@ function CallbackContent() {
         phoneVerified: phoneVerified === "true", // ✅ Convert string to boolean
       };
 
-      console.log("✅ Google OAuth Success:", { user, role });
+      console.log("✅ Google OAuth Success - User object:", user);
+      console.log("✅ emailVerified value:", emailVerified, "converted to:", user.emailVerified);
 
       // Use loginWithOAuth for OAuth flow
       loginWithOAuth(user, token);

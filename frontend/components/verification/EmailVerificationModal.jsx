@@ -19,7 +19,7 @@ export default function EmailVerificationModal({ isOpen, onClose, userEmail }) {
     setIsVerifying(true);
 
     try {
-      await api('/api/verification/email/send', {
+      await api('/api/verification/email/verify', {
         method: 'POST',
         body: { otp: code },
       });

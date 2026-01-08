@@ -1,15 +1,14 @@
 "use client";
-
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function PhoneVerificationModal({ isOpen, onClose, userRole }) {
+export default function PhoneVerificationModal({ isOpen, onClose, userPhone }) {
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
-  const { updateUser } = useAuth(); // ✅ Get updateUser function
+  const { updateUser } = useAuth();
 
   if (!isOpen) return null;
 
@@ -24,7 +23,7 @@ export default function PhoneVerificationModal({ isOpen, onClose, userRole }) {
         body: { otp: code },
       });
 
-      // ✅ Update user state instead of reloading
+      // Update user state
       updateUser({ phoneVerified: true });
       
       alert('Phone verified successfully! ✅');
@@ -45,30 +44,33 @@ export default function PhoneVerificationModal({ isOpen, onClose, userRole }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-
+        
         <p className="text-gray-600 mb-4">
-          We've sent a verification code via SMS
+          We've sent a verification code to <strong>{userPhone}</strong>
         </p>
-
+        
         <form onSubmit={handleVerify}>
           <input
             type="text"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
             placeholder="Enter 6-digit code"
             maxLength={6}
-            className="w-full px-4 py-2 border rounded-md mb-4"
+            className="w-full px-4 py-2 border rounded-md mb-4 text-center text-lg tracking-widest"
             required
+            autoFocus
           />
-
+          
           {error && (
-            <div className="text-red-600 text-sm mb-4">{error}</div>
+            <div className="text-red-600 text-sm mb-4 p-2 bg-red-50 rounded">
+              {error}
+            </div>
           )}
-
+          
           <button
             type="submit"
             disabled={isVerifying || code.length !== 6}
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isVerifying ? 'Verifying...' : 'Verify Phone'}
           </button>
