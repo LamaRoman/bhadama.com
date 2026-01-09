@@ -60,8 +60,6 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
     location: "",
     address: "",
     hourlyRate: "",
-    halfDayRate: "",
-    fullDayRate: "",
     capacity: "",
     minCapacity: "1",
     includedGuests: "",
@@ -120,8 +118,6 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
         location: data.location || "",
         address: data.address || "",
         hourlyRate: data.hourlyRate?.toString() || "",
-        halfDayRate: data.halfDayRate?.toString() || "",
-        fullDayRate: data.fullDayRate?.toString() || "",
         capacity: data.capacity?.toString() || "",
         minCapacity: data.minCapacity?.toString() || "1",
         includedGuests: data.includedGuests?.toString() || "",
@@ -242,8 +238,8 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
       toast.error("Location is required");
       return;
     }
-    if (!form.hourlyRate && !form.halfDayRate && !form.fullDayRate) {
-      toast.error("Please set at least one pricing option");
+    if (!form.hourlyRate) {
+      toast.error("Please set one pricing");
       return;
     }
     if (!form.capacity) {
@@ -262,8 +258,6 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
         location: form.location,
         address: form.address || null,
         hourlyRate: form.hourlyRate ? parseFloat(form.hourlyRate) : null,
-        halfDayRate: form.halfDayRate ? parseFloat(form.halfDayRate) : null,
-        fullDayRate: form.fullDayRate ? parseFloat(form.fullDayRate) : null,
         capacity: parseInt(form.capacity),
         minCapacity: parseInt(form.minCapacity) || 1,
         includedGuests: form.includedGuests ? parseInt(form.includedGuests) : null,
@@ -300,14 +294,16 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
           ? `/api/admin/listings/${listingId}`
           : `/api/host/listings/${listingId}`;
 
+        // ✅ FIXED: Don't use JSON.stringify - api.js handles it
         await api(endpoint, {
           method: "PUT",
-          body: JSON.stringify(listingData),
+          body: listingData,
         });
 
         setUploadProgress("✓ Changes saved!");
       } else {
         // Create new listing
+        // ✅ FIXED: Don't use JSON.stringify - api.js handles it
         const createRes = await api("/api/host/listings", {
           method: "POST",
           body: listingData,
@@ -581,45 +577,6 @@ export default function ListingForm({ mode = "create", listingId = null, isAdmin
                     <p className="text-xs text-gray-500 mt-1">Per hour</p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Half Day Rate
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">Rs.</span>
-                      <input
-                        type="number"
-                        name="halfDayRate"
-                        value={form.halfDayRate}
-                        onChange={handleChange}
-                        step="0.01"
-                        min="0"
-                        placeholder="1500"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">4 hours</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Full Day Rate
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">Rs.</span>
-                      <input
-                        type="number"
-                        name="fullDayRate"
-                        value={form.fullDayRate}
-                        onChange={handleChange}
-                        step="0.01"
-                        min="0"
-                        placeholder="3000"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">8+ hours</p>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">

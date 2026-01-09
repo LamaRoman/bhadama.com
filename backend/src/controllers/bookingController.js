@@ -7,49 +7,61 @@ import { prisma } from "../config/prisma.js";
  */
 export const createBooking = async (req, res) => {
   try {
-
-    const userId = Number(req.user.userId);
+    const userId = BigInt(req.user.userId);
     const { listingId, bookingDate, startTime, endTime, guests } = req.body;
 
-    // Get the listing to check ownership and pricing
+    console.log("📝 Creating booking:", {
+      userId: userId.toString(),
+      listingId,
+      bookingDate,
+    });
+
+    // Get the listing
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
-      select: { 
+      select: {
         id: true,
-        hostId: true, 
+        title: true,
+        hostId: true,
         hourlyRate: true,
         extraGuestCharge: true,
         includedGuests: true,
-      }
+      },
     });
-
     if (!listing) {
       return res.status(404).json({ error: "Listing not found" });
     }
 
-    // Prevent host from booking their own listing
+    // Prevent self-booking
     if (listing.hostId === userId) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "You cannot book your own listing",
-        code: "SELF_BOOKING_NOT_ALLOWED"
+        code: "SELF_BOOKING_NOT_ALLOWED",
       });
     }
 
-    // Calculate duration in hours
+    // Calculate duration
     const [startH, startM] = startTime.split(":").map(Number);
     const [endH, endM] = endTime.split(":").map(Number);
-    const duration = ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
+    const duration = (endH * 60 + endM - (startH * 60 + startM)) / 60;
 
     // Calculate prices
     const basePrice = duration * Number(listing.hourlyRate || 0);
     const extraGuests = Math.max(0, guests - (listing.includedGuests || 10));
     const extraGuestPrice = extraGuests * Number(listing.extraGuestCharge || 0);
     const subtotal = basePrice + extraGuestPrice;
-    const serviceFee = subtotal * 0.1; // 10% service fee
-    const tax = subtotal * 0.05; // 5% tax
+    const serviceFee = subtotal * 0.1;
+    const tax = subtotal * 0.05;
     const totalPrice = subtotal + serviceFee + tax;
 
-    // Create the booking
+    console.log("💰 Price calculation:", {
+      basePrice,
+      extraGuestPrice,
+      serviceFee,
+      tax,
+      totalPrice,
+    });
+    // Create booking with PENDING status
     const booking = await prisma.booking.create({
       data: {
         listingId,
@@ -64,9 +76,114 @@ export const createBooking = async (req, res) => {
         serviceFee,
         tax,
         totalPrice,
-        status: "CONFIRMED",
+        status: "PENDING",
+        paymentStatus: "PENDING",
       },
       include: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+    console.log("✅ Booking created:", booking.id);
+
+    // Get eSewa config
+    const esewaConfig = await prisma.paymentGatewayConfig.findUnique({
+      where: { gateway: "ESEWA" },
+    });
+
+    if (!esewaConfig || !esewaConfig.isActive) {
+      console.log("❌ eSewa not configured");
+      return res.status(500).json({ error: "Payment gateway not available" });
+    }
+    console.log("🔧 eSewa config:", {
+      merchantId: esewaConfig.merchantId,
+      isTestMode: esewaConfig.isTestMode,
+    });
+
+    // Create unique transaction ID
+    const transactionUuid = `BKG-${booking.id}-${Date.now()}`;
+    const esewaParams = {
+      amt: Math.round(Number(totalPrice)),
+      psc: 0,
+      pdc: 0,
+      txAmt: 0,
+      tAmt: Math.round(Number(totalPrice)),
+      pid: transactionUuid,
+      scd: esewaConfig.merchantId || "EPAYTEST",
+      su: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/success`,
+      fu: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/failure`,
+    };
+
+    console.log("💳 eSewa params:", esewaParams);
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        paymentGateway: "ESEWA",
+        paymentTransactionId: transactionUuid,
+        paymentDetails: esewaParams,
+      },
+    });
+
+    const esewaUrl = esewaConfig.isTestMode
+      ? "https://uat.esewa.com.np/epay/main"
+      : "https://esewa.com.np/epay/main";
+
+    console.log("🚀 Payment URL:", esewaUrl);
+    return res.status(201).json({
+      success: true,
+      message: "Booking created. Redirecting to payment...",
+      booking: {
+        id: booking.id,
+        listingId: booking.listingId,
+        bookingDate: booking.bookingDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        guests: booking.guests,
+        basePrice: Number(booking.basePrice),
+        extraGuestPrice: Number(booking.extraGuestPrice),
+        serviceFee: Number(booking.serviceFee),
+        tax: Number(booking.tax),
+        totalPrice: Number(booking.totalPrice),
+        duration: Number(booking.duration),
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+      },
+      payment: {
+        gateway: "ESEWA",
+        url: esewaUrl,
+        method: "POST",
+        params: esewaParams,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Create booking error:", error);
+    return res.status(500).json({
+      error: "Failed to create booking",
+      details: error.message,
+    });
+  }
+};
+/**
+ * Handle eSewa payment success callback
+ * GET /api/bookings/payment/esewa/success
+ */
+export const esewaPaymentSuccess = async (req, res) => {
+  try {
+    const { oid, amt, refId } = req.query;
+
+    console.log("✅ eSewa success callback:", { oid, amt, refId });
+
+    // Find booking by transaction ID
+    const booking = await prisma.booking.findFirst({
+      where: { 
+        paymentTransactionId: oid,
+        status: "PENDING"
+      },
+       include: {
         listing: {
           select: {
             id: true,
@@ -75,24 +192,70 @@ export const createBooking = async (req, res) => {
         }
       }
     });
+if (!booking) {
+      console.log("❌ Booking not found for transaction:", oid);
+      return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=booking_not_found`);
+    }
 
-    return res.status(201).json({
-      success: true,
-      message: "Booking created successfully",
-      booking: {
-        ...booking,
-        basePrice: Number(booking.basePrice),
-        extraGuestPrice: Number(booking.extraGuestPrice),
-        serviceFee: Number(booking.serviceFee),
-        tax: Number(booking.tax),
-        totalPrice: Number(booking.totalPrice),
-        duration: Number(booking.duration),
+    console.log("📦 Found booking:", booking.id);
+
+    // TODO: Verify payment with eSewa API (recommended for production)
+    // For now, we trust the callback
+
+    // Update booking to CONFIRMED
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        status: "CONFIRMED",
+        paymentStatus: "COMPLETED",
+        paymentReferenceId: refId,
+        paymentCompletedAt: new Date(),
       }
     });
+    console.log("✅ Booking confirmed:", booking.id);
+
+    // Redirect to success page
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${refId}`);
 
   } catch (error) {
-    console.error("Create booking error:", error);
-    return res.status(500).json({ error: "Failed to create booking" });
+    console.error("❌ eSewa success callback error:", error);
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=callback_error`);
+  }
+};
+
+/**
+ * Handle eSewa payment failure callback
+ * GET /api/bookings/payment/esewa/failure
+ */
+export const esewaPaymentFailure = async (req, res) => {
+  try {
+    const { pid } = req.query;
+
+    console.log("❌ eSewa failure callback:", { pid });
+
+    // Find and update booking
+    const booking = await prisma.booking.findFirst({
+      where: { 
+        paymentTransactionId: pid,
+        status: "PENDING"
+      }
+    });
+if (booking) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "FAILED",
+          paymentStatus: "FAILED",
+        }
+      });
+      console.log("💔 Booking marked as failed:", booking.id);
+    }
+
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?bookingId=${booking?.id || 'unknown'}`);
+
+  } catch (error) {
+    console.error("❌ eSewa failure callback error:", error);
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=callback_error`);
   }
 };
 
@@ -100,7 +263,7 @@ export const completeExpiredBookings = async () => {
   const now = new Date();
 
   const bookings = await prisma.booking.findMany({
-    where: { status: "CONFIRMED" }
+    where: { status: "CONFIRMED" },
   });
 
   for (const booking of bookings) {
@@ -113,8 +276,8 @@ export const completeExpiredBookings = async () => {
         where: { id: booking.id },
         data: {
           status: "COMPLETED",
-          completedAt: now
-        }
+          completedAt: now,
+        },
       });
     }
   }
@@ -141,7 +304,9 @@ export async function getAvailability(req, res) {
     res.json({ date, slots });
   } catch (err) {
     console.error("GET AVAILABILITY ERROR:", err);
-    res.status(500).json({ error: err.message || "Failed to get availability" });
+    res
+      .status(500)
+      .json({ error: err.message || "Failed to get availability" });
   }
 }
 
@@ -155,8 +320,8 @@ export async function getUserBookings(req, res) {
     console.log("Fetching bookings for user ID:", userId); // Debug log
 
     const bookings = await prisma.booking.findMany({
-      where: { 
-        userId: userId // filter by the logged in user
+      where: {
+        userId: userId, // filter by the logged in user
       },
       include: {
         listing: {
@@ -175,10 +340,10 @@ export async function getUserBookings(req, res) {
       },
       orderBy: { bookingDate: "desc" },
     });
-    
+
     console.log("Found bookings:", bookings.length); // Debug log
-    
-    const normalizedBookings = bookings.map(b => ({
+
+    const normalizedBookings = bookings.map((b) => ({
       ...b,
       basePrice: Number(b.basePrice),
       extraGuestPrice: Number(b.extraGuestPrice),

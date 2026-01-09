@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../../utils/api.js";
+import { CheckCircle } from "lucide-react";
 
 export default function ProfilePage() {
   const [user, setUser] = useState({ 
     name: "", 
     email: "", 
+    phone: "",
     profilePhoto: "",
     lastNameChange: null,
+    emailVerified: false,
+    phoneVerified: false,
+    role: "USER",
   });
   const [passwords, setPasswords] = useState({
     currentPassword: "",
@@ -46,31 +51,35 @@ export default function ProfilePage() {
       return;
     }
 
-    const fetchProfile = async () => {
-      try {
-        const profileData = await api("/api/users/profile");
-
-        if (profileData.error) {
-          router.push("/auth/login");
-          return;
-        }
-
-        setUser({
-          name: profileData.name || "",
-          email: profileData.email || "",
-          profilePhoto: profileData.profilePhoto || "",
-          lastNameChange: profileData.lastNameChange || null,
-        });
-      } catch (err) {
-        console.error(err);
-        router.push("/auth/login");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProfile();
   }, [router]);
+
+  const fetchProfile = async () => {
+    try {
+      const profileData = await api("/api/users/profile");
+
+      if (profileData.error) {
+        router.push("/auth/login");
+        return;
+      }
+
+      setUser({
+        name: profileData.name || "",
+        email: profileData.email || "",
+        phone: profileData.phone || "",
+        profilePhoto: profileData.profilePhoto || "",
+        lastNameChange: profileData.lastNameChange || null,
+        emailVerified: profileData.emailVerified || false,
+        phoneVerified: profileData.phoneVerified || false,
+        role: profileData.role || "USER",
+      });
+    } catch (err) {
+      console.error(err);
+      router.push("/auth/login");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files[0];
@@ -109,10 +118,9 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('photo', photoFile);
 
-      // Use the api utility - it handles the backend URL and auth token
       const data = await api("/api/users/upload-photo", {
         method: "POST",
-        body: formData, // api utility detects FormData and handles it properly
+        body: formData,
       });
 
       if (data.error) {
@@ -174,17 +182,28 @@ export default function ProfilePage() {
         body: {
           name: user.name,
           email: user.email,
+          phone: user.phone,
         },
       });
 
       if (response.error) {
         setError(response.error);
       } else {
-        // Update lastNameChange if name was changed
-        if (response.user?.lastNameChange) {
-          setUser({ ...user, lastNameChange: response.user.lastNameChange });
+        // Update local state with response
+        if (response.user) {
+          setUser(prev => ({
+            ...prev,
+            ...response.user,
+          }));
         }
-        setSuccess("Profile updated successfully!");
+        
+        // Show appropriate success message
+        if (response.user?.phone && !response.user?.phoneVerified) {
+          setSuccess("Profile updated! Please verify your phone number.");
+        } else {
+          setSuccess("Profile updated successfully!");
+        }
+        
         setTimeout(() => setSuccess(""), 3000);
       }
     } catch (err) {
@@ -399,6 +418,7 @@ export default function ProfilePage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Profile Information</h2>
 
           <form onSubmit={handleUpdateProfile} className="space-y-4">
+            {/* Name Field */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-semibold text-gray-700">
@@ -430,10 +450,19 @@ export default function ProfilePage() {
               )}
             </div>
 
+            {/* Email Field */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email Address
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Email Address
+                </label>
+                {user.emailVerified && (
+                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Verified
+                  </span>
+                )}
+              </div>
               <input
                 type="email"
                 value={user.email}
@@ -442,6 +471,33 @@ export default function ProfilePage() {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
                 required
               />
+            </div>
+
+            {/* Phone Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Phone Number
+                </label>
+                {user.phoneVerified && (
+                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Verified
+                  </span>
+                )}
+              </div>
+              <input
+                type="tel"
+                value={user.phone}
+                onChange={(e) => setUser({ ...user, phone: e.target.value })}
+                placeholder="+977 98XXXXXXXX"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {user.role === 'HOST' 
+                  ? 'Phone verification is required for hosts to publish listings'
+                  : 'Optional - for booking notifications and faster confirmations'}
+              </p>
             </div>
 
             <button
@@ -503,24 +559,24 @@ export default function ProfilePage() {
                 />
               </div>
 
-             <div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    New Password
-  </label>
-  <input
-    type="password"
-    value={passwords.newPassword}
-    onChange={(e) =>
-      setPasswords({ ...passwords, newPassword: e.target.value })
-    }
-    placeholder="Enter new password"
-    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
-    required
-  />
-  <p className="mt-2 text-xs text-gray-500">
-    Must be 6-128 characters with at least one uppercase letter, one lowercase letter, and one number
-  </p>
-</div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={passwords.newPassword}
+                  onChange={(e) =>
+                    setPasswords({ ...passwords, newPassword: e.target.value })
+                  }
+                  placeholder="Enter new password"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
+                  required
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Must be 6-128 characters with at least one uppercase letter, one lowercase letter, and one number
+                </p>
+              </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -1,10 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { AlertCircle, Mail, X, CheckCircle } from 'lucide-react';
+import { AlertCircle, Mail, X, CheckCircle, Shield } from 'lucide-react';
 import { useEmailVerification } from '@/hooks/useEmailVerification';
 
 export default function VerificationBanner({ user, onVerified }) {
   const [isDismissed, setIsDismissed] = useState(false);
+  
+  // Check if verification is required (mandatory for hosts)
+  const isRequired = user?.role === 'HOST';
   
   const {
     showOtpInput,
@@ -16,31 +19,39 @@ export default function VerificationBanner({ user, onVerified }) {
     message,
     messageType,
     sendCode,
-    isVerified, // ✅ Get verification status
+    isVerified,
   } = useEmailVerification(onVerified);
 
-  // ✅ Auto-dismiss banner when verification succeeds
+  // Auto-dismiss banner when verification succeeds
   useEffect(() => {
     if (isVerified) {
       setIsDismissed(true);
     }
   }, [isVerified]);
 
+  // Don't show if dismissed (users only, hosts cannot dismiss)
   if (isDismissed) return null;
 
   return (
-    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg shadow-sm">
+    <div className={`${isRequired ? 'bg-orange-50 border-l-4 border-orange-400' : 'bg-yellow-50 border-l-4 border-yellow-400'} p-4 mb-6 rounded-r-lg shadow-sm`}>
       <div className="flex items-start justify-between">
         <div className="flex items-start flex-1">
-          <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0" />
+          {isRequired ? (
+            <Shield className="h-5 w-5 text-orange-400 mt-0.5 mr-3 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0" />
+          )}
           
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-yellow-800">
-              Verify Your Email Address
+            <h3 className={`text-sm font-medium ${isRequired ? 'text-orange-800' : 'text-yellow-800'}`}>
+              {isRequired ? 'Email Verification Required' : 'Verify Your Email Address'}
             </h3>
 
-            <p className="mt-1 text-sm text-yellow-700">
-              Please verify <strong>{user.email}</strong> to access all features.
+            <p className={`mt-1 text-sm ${isRequired ? 'text-orange-700' : 'text-yellow-700'}`}>
+              {isRequired 
+                ? <>Please verify <strong>{user.email}</strong> to publish listings.</>
+                : <>Please verify <strong>{user.email}</strong> to access all features.</>
+              }
             </p>
 
             {message && (
@@ -63,7 +74,11 @@ export default function VerificationBanner({ user, onVerified }) {
               <button
                 onClick={sendCode}
                 disabled={isSending}
-                className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-yellow-500 text-white hover:bg-yellow-600 disabled:opacity-60 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                className={`mt-4 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white disabled:opacity-60 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  isRequired
+                    ? 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-500'
+                    : 'bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500'
+                }`}
               >
                 <Mail className="h-4 w-4 mr-2" />
                 {isSending ? 'Sending...' : 'Verify Now'}
@@ -83,7 +98,11 @@ export default function VerificationBanner({ user, onVerified }) {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     placeholder="000000"
-                    className="w-full max-w-xs px-4 py-3 border-2 border-yellow-300 rounded-lg text-center text-2xl tracking-[0.5em] font-mono focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    className={`w-full max-w-xs px-4 py-3 border-2 rounded-lg text-center text-2xl tracking-[0.5em] font-mono focus:outline-none focus:ring-2 ${
+                      isRequired
+                        ? 'border-orange-300 focus:border-orange-500 focus:ring-orange-200'
+                        : 'border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200'
+                    }`}
                     disabled={isVerifying}
                     autoComplete="one-time-code"
                     autoFocus
@@ -93,7 +112,11 @@ export default function VerificationBanner({ user, onVerified }) {
                 <button
                   onClick={sendCode}
                   disabled={countdown > 0 || isSending}
-                  className="px-4 py-2 text-sm rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                  className={`px-4 py-2 text-sm rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    isRequired
+                      ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 focus:ring-orange-500'
+                      : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 focus:ring-yellow-500'
+                  }`}
                 >
                   {countdown > 0 ? `Resend in ${countdown}s` : 'Resend Code'}
                 </button>
@@ -102,13 +125,16 @@ export default function VerificationBanner({ user, onVerified }) {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsDismissed(true)}
-          className="text-yellow-400 hover:text-yellow-600 transition-colors p-1 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          aria-label="Dismiss verification banner"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {/* Only show dismiss button for users, not for hosts */}
+        {!isRequired && (
+          <button
+            onClick={() => setIsDismissed(true)}
+            className="text-yellow-400 hover:text-yellow-600 transition-colors p-1 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            aria-label="Dismiss verification banner"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
     </div>
   );

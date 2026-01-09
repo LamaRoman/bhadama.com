@@ -253,8 +253,6 @@ export const updateListing = async (req, res) => {
       location, 
       status,
       hourlyRate,
-      halfDayRate,
-      fullDayRate,
       minHours,
       maxHours,
       amenities,
@@ -279,14 +277,11 @@ export const updateListing = async (req, res) => {
         location,
         status,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
-        halfDayRate: halfDayRate ? parseFloat(halfDayRate) : null,
-        fullDayRate: fullDayRate ? parseFloat(fullDayRate) : null,
         minHours: minHours ? parseInt(minHours) : undefined,
         maxHours: maxHours ? parseInt(maxHours) : undefined,
         amenities,
         capacity: capacity ? parseInt(capacity) : null,
         operatingHours,
-        price: hourlyRate ? parseFloat(hourlyRate) : existing.price, // Update backward compat
       },
       include: {
         images: true,

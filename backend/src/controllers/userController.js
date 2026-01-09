@@ -1,7 +1,8 @@
 import { prisma } from "../config/prisma.js";
 import bcrypt from "bcrypt";
-import { uploadToS3, deleteFromS3 } from "../config/s3.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 import crypto from "crypto";
+import smsService from "../services/sms/smsService.js";
 
 // ============ CONTROLLER FUNCTIONS ============
 
@@ -23,6 +24,12 @@ export async function getProfile(req, res) {
         profilePhoto: true,
         lastNameChange: true,
         createdAt: true,
+        // Email verification fields
+        emailVerified: true,
+        // Phone verification fields
+        phone: true,
+        phoneVerified: true,
+        phoneCountryCode: true,
       },
     });
 
@@ -44,7 +51,7 @@ export async function getProfile(req, res) {
 export async function updateUser(req, res) {
   try {
     const userId = req.user.userId;
-    const { name, email } = req.body;
+    const { name, email, phone } = req.body;
 
     // Get current user
     const currentUser = await prisma.user.findUnique({
@@ -88,6 +95,58 @@ export async function updateUser(req, res) {
       if (emailExists) {
         return res.status(400).json({ error: "Email already in use" });
       }
+      
+      // Reset email verification if email changed
+      updateData.emailVerified = false;
+    }
+
+    // Handle phone number update
+    if (phone !== undefined) {
+      // If phone is being cleared
+      if (!phone || phone.trim() === '') {
+        updateData.phone = null;
+        updateData.phoneVerified = false;
+        updateData.phoneCountryCode = null;
+      } else {
+        // Validate phone number format
+        const phoneValidation = smsService.validatePhoneNumber(phone);
+        
+        if (!phoneValidation.valid) {
+          return res.status(400).json({ 
+            error: phoneValidation.error || "Invalid phone number format" 
+          });
+        }
+        
+        // Normalize phone number
+        const normalizedPhone = smsService.normalizePhoneNumber(phone);
+        
+        // Check if phone changed
+        if (normalizedPhone !== currentUser.phone) {
+          // Check if phone is already used by another verified user
+          const phoneExists = await prisma.user.findFirst({
+            where: {
+              phone: normalizedPhone,
+              id: { not: userId },
+              phoneVerified: true,
+            },
+          });
+
+          if (phoneExists) {
+            return res.status(400).json({ 
+              error: "This phone number is already registered to another account" 
+            });
+          }
+
+          updateData.phone = normalizedPhone;
+          updateData.phoneVerified = false; // Reset verification when phone changes
+          updateData.phoneCountryCode = phoneValidation.countryCode || null;
+          
+          // Clear any existing OTP data
+          updateData.phoneVerificationToken = null;
+          updateData.phoneVerificationExpiry = null;
+          updateData.phoneVerificationAttempts = 0;
+        }
+      }
     }
 
     // Update user
@@ -101,6 +160,10 @@ export async function updateUser(req, res) {
         role: true,
         profilePhoto: true,
         lastNameChange: true,
+        emailVerified: true,
+        phone: true,
+        phoneVerified: true,
+        phoneCountryCode: true,
       },
     });
 
@@ -115,7 +178,7 @@ export async function updateUser(req, res) {
 }
 
 /**
- * Upload profile photo to AWS S3
+ * Upload profile photo to Cloudinary
  * POST /api/users/upload-photo
  */
 export async function uploadProfilePhoto(req, res) {
@@ -132,32 +195,22 @@ export async function uploadProfilePhoto(req, res) {
       select: { profilePhoto: true },
     });
 
-    // Generate unique key for S3
-    const extension = req.file.originalname.split(".").pop();
-    const uniqueId = crypto.randomUUID();
-    const timestamp = Date.now();
-    const key = `profiles/${userId}/${timestamp}-${uniqueId}.${extension}`;
+    // Upload to Cloudinary
+    const result = await uploadToCloudinary(req.file.buffer, {
+      folder: `profiles/${userId}`,
+      public_id: `profile_${Date.now()}`,
+      transformation: [
+        { width: 400, height: 400, crop: 'fill', gravity: 'face' }
+      ]
+    });
 
-    // Upload to S3
-    const { secure_url } = await uploadToS3(
-      {
-        buffer: req.file.buffer,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-      },
-      key
-    );
-
-    // Delete old photo from S3 if it exists
-    if (currentUser.profilePhoto && currentUser.profilePhoto.includes('amazonaws.com')) {
+    // Delete old photo from Cloudinary if it exists
+    if (currentUser.profilePhoto && currentUser.profilePhoto.includes('cloudinary')) {
       try {
-        // Extract the S3 key from the URL
-        const parts = currentUser.profilePhoto.split('.amazonaws.com/');
-        
-        if (parts.length === 2) {
-          const oldKey = decodeURIComponent(parts[1]);
-          await deleteFromS3(oldKey);
-        }
+        // Extract public_id from Cloudinary URL
+        const urlParts = currentUser.profilePhoto.split('/');
+        const publicIdWithExtension = urlParts.slice(-2).join('/').split('.')[0];
+        await deleteFromCloudinary(publicIdWithExtension);
       } catch (deleteErr) {
         console.error("Failed to delete old photo:", deleteErr.message);
         // Continue anyway - don't fail the upload if delete fails
@@ -167,12 +220,12 @@ export async function uploadProfilePhoto(req, res) {
     // Update user with new photo URL
     await prisma.user.update({
       where: { id: userId },
-      data: { profilePhoto: secure_url },
+      data: { profilePhoto: result.secure_url },
     });
 
     res.json({
       message: "Profile photo uploaded successfully",
-      photoUrl: secure_url,
+      photoUrl: result.secure_url,
     });
   } catch (err) {
     console.error("UPLOAD PHOTO ERROR:", err);
@@ -181,7 +234,7 @@ export async function uploadProfilePhoto(req, res) {
 }
 
 /**
- * Remove profile photo from AWS S3
+ * Remove profile photo from Cloudinary
  * DELETE /api/users/remove-photo
  */
 export async function removeProfilePhoto(req, res) {
@@ -198,17 +251,14 @@ export async function removeProfilePhoto(req, res) {
       return res.status(400).json({ error: "No profile photo to remove" });
     }
 
-    // Delete from S3 if it's an S3 URL
-    if (currentUser.profilePhoto.includes('amazonaws.com')) {
+    // Delete from Cloudinary if it's a Cloudinary URL
+    if (currentUser.profilePhoto.includes('cloudinary')) {
       try {
-        const parts = currentUser.profilePhoto.split('.amazonaws.com/');
-        
-        if (parts.length === 2) {
-          const key = decodeURIComponent(parts[1]);
-          await deleteFromS3(key);
-        }
+        const urlParts = currentUser.profilePhoto.split('/');
+        const publicIdWithExtension = urlParts.slice(-2).join('/').split('.')[0];
+        await deleteFromCloudinary(publicIdWithExtension);
       } catch (deleteErr) {
-        console.error("Failed to delete photo from S3:", deleteErr);
+        console.error("Failed to delete photo from Cloudinary:", deleteErr);
         // Continue anyway - still remove from database
       }
     }
@@ -281,7 +331,7 @@ export async function changePassword(req, res) {
       select: {
         id: true,
         password: true,
-        email: true, // Optional: for logging purposes
+        email: true,
       },
     });
 
@@ -313,16 +363,8 @@ export async function changePassword(req, res) {
       },
     });
 
-      // Send confirmation email
-    try {
-      await emailService.sendPasswordChangeConfirmation(user.email, user.name);
-    } catch (emailError) {
-      console.error("Failed to send confirmation email:", emailError);
-      // Don't fail the password change if email fails
-    }
     // Optional: Log password change for security audit
     console.log(`Password changed successfully for user: ${user.email} (ID: ${userId})`);
-
 
     res.json({ message: "Password changed successfully" });
   } catch (err) {
@@ -356,16 +398,14 @@ export async function deleteUser(req, res) {
       return res.status(400).json({ error: "Incorrect password" });
     }
 
-    // Delete profile photo from S3 if exists
-    if (user.profilePhoto && user.profilePhoto.includes('amazonaws.com')) {
+    // Delete profile photo from Cloudinary if exists
+    if (user.profilePhoto && user.profilePhoto.includes('cloudinary')) {
       try {
-        const parts = user.profilePhoto.split('.amazonaws.com/');
-        if (parts.length === 2) {
-          const key = decodeURIComponent(parts[1]);
-          await deleteFromS3(key);
-        }
+        const urlParts = user.profilePhoto.split('/');
+        const publicIdWithExtension = urlParts.slice(-2).join('/').split('.')[0];
+        await deleteFromCloudinary(publicIdWithExtension);
       } catch (deleteErr) {
-        console.error("Failed to delete photo from S3:", deleteErr);
+        console.error("Failed to delete photo from Cloudinary:", deleteErr);
         // Continue with user deletion even if photo delete fails
       }
     }

@@ -216,6 +216,14 @@ model User {
   phoneVerificationLockedUntil DateTime?
   phoneCountryCode             String?
 
+  // ADD THESE PAYMENT FIELDS
+  paymentGateway        String?
+  paymentStatus         String?   @default("PENDING")
+  paymentTransactionId  String?
+  paymentReferenceId    String?
+  paymentDetails        Json?
+  paymentCompletedAt    DateTime?
+
   // Rate Limiting for OTP (6 new fields)
   lastEmailOtpSent  DateTime?
   emailOtpSendCount Int       @default(0)

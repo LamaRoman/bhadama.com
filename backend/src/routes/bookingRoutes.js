@@ -8,6 +8,10 @@ const router = express.Router();
 // Create booking
 router.post("/", authenticate,requireEmailVerification, controller.createBooking);
 
+// ⭐ eSewa payment callbacks (NO AUTHENTICATION - eSewa calls these)
+router.get("/payment/esewa/success", controller.esewaPaymentSuccess);
+router.get("/payment/esewa/failure", controller.esewaPaymentFailure);
+
 // Get available time slots for a listing
 router.get("/availability/:listingId", controller.getAvailability);
 
