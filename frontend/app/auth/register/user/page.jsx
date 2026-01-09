@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext.js";
 import { api } from "../../../../utils/api.js";
 import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
+import { COUNTRIES_WITH_NEPAL_FIRST } from "@/utils/countries.js";
+import { Globe, ChevronDown } from "lucide-react";
 
 function RegisterContent() {
   const router = useRouter();
@@ -16,7 +18,9 @@ function RegisterContent() {
     name: "",
     email: "",
     password: "",
-    role: "USER"  // USER role
+    confirmPassword: "",  // ✅ Added confirm password
+    country: "NP",
+    role: "USER"
   });
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +69,11 @@ function RegisterContent() {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Please enter a valid email";
     }
+
+    // ✅ Added country validation
+    if (!formData.country) {
+      newErrors.country = "Please select your country";
+    }
     
     if (!formData.password) {
       newErrors.password = "Password is required";
@@ -77,47 +86,55 @@ function RegisterContent() {
         newErrors.password = "Password must contain at least one number";
       }
     }
+
+    // ✅ Added confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
     
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setMessage("");
-  
-  const validationErrors = validateForm();
-  if (Object.keys(validationErrors).length > 0) {
-    setErrors(validationErrors);
-    return;
-  }
-  
-  setIsLoading(true);
-
-  try {
-    const data = await api("/api/auth/register", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (data.error) {
-      setMessage(data.error);
-    } else {
-     // ✅ NEW - Use loginWithOAuth
-loginWithOAuth(data.user, data.token);
-      // Show success message
-      setMessage(data.message || "Registration successful! Redirecting...");
-      
-      // Redirect after 1.5 seconds - the useEffect will detect the user
-      setTimeout(() => {
-         window.location.href = "/";
-      }, 1500);
+    e.preventDefault();
+    setMessage("");
+    
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
     }
-  } catch (error) {
-    setMessage(error.message || "An error occurred. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+    
+    setIsLoading(true);
+
+    try {
+      const data = await api("/api/auth/register", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (data.error) {
+        setMessage(data.error);
+      } else {
+        // ✅ Update Auth Context immediately
+        loginWithOAuth(data.user, data.token);
+        
+        // Show success message
+        setMessage(data.message || "Registration successful! Redirecting...");
+        
+        // Redirect after 1.5 seconds
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
+      }
+    } catch (error) {
+      setMessage(error.message || "An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -147,7 +164,7 @@ loginWithOAuth(data.user, data.token);
           <form onSubmit={handleSubmit} className="space-y-5">
             {message && (
               <div className={`px-4 py-3 rounded-lg text-sm ${message.includes("successful") || message.includes("Redirecting") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                {message }
+                {message}
               </div>
             )}
 
@@ -187,7 +204,40 @@ loginWithOAuth(data.user, data.token);
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
             </div>
 
-           
+            {/* ✅ Country Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Country <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${errors.country ? "border-red-300" : "border-gray-300"}`}
+                  required
+                  disabled={isLoading}
+                >
+                  <option value="">Select your country</option>
+                  {COUNTRIES_WITH_NEPAL_FIRST.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flag} {country.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
+              {errors.country && <p className="mt-1 text-sm text-red-600">{errors.country}</p>}
+              {formData.country && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.country === "NP" 
+                    ? "✓ eSewa, Khalti & Card payments available" 
+                    : "✓ Card payments available"}
+                </p>
+              )}
+            </div>
+
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -240,6 +290,31 @@ loginWithOAuth(data.user, data.token);
               </div>
             </div>
 
+            {/* ✅ Confirm Password Field */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 ${errors.confirmPassword ? "border-red-300" : "border-gray-300"}`}
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+              {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                <p className="mt-1 text-sm text-green-600 flex items-center">
+                  <span className="mr-1">✓</span> Passwords match
+                </p>
+              )}
+            </div>
+
             {/* Terms */}
             <div className="flex items-start">
               <input
@@ -260,7 +335,7 @@ loginWithOAuth(data.user, data.token);
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
+              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-all"
             >
               {isLoading ? "Creating account..." : "Create account"}
             </button>

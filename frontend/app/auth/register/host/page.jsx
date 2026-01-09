@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext.js";
 import { api } from "../../../../utils/api.js";
 import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
+import { COUNTRIES_WITH_NEPAL_FIRST } from "@/utils/countries.js";
+import { Globe, ChevronDown } from "lucide-react"; // ✅ Added imports
 
 function RegisterContent() {
   const router = useRouter();
@@ -16,6 +18,8 @@ function RegisterContent() {
     name: "",
     email: "",
     password: "",
+    confirmPassword: "",
+    country: "NP",
     role: "HOST"
   });
   const [message, setMessage] = useState("");
@@ -64,6 +68,10 @@ function RegisterContent() {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Please enter a valid email";
     }
+
+    if (!formData.country) {
+      newErrors.country = "Please select your country";
+    }
     
     if (!formData.password) {
       newErrors.password = "Password is required";
@@ -75,6 +83,13 @@ function RegisterContent() {
       } else if (!/[0-9]/.test(formData.password)) {
         newErrors.password = "Password must contain at least one number";
       }
+    }
+
+    // ✅ Added confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
     }
     
     return newErrors;
@@ -186,6 +201,40 @@ function RegisterContent() {
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
             </div>
 
+            {/* ✅ FIXED: Country Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Country <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${errors.country ? "border-red-300" : "border-gray-300"}`}
+                  required
+                  disabled={isLoading}
+                >
+                  <option value="">Select your country</option>
+                  {COUNTRIES_WITH_NEPAL_FIRST.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flag} {country.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
+              {errors.country && <p className="mt-1 text-sm text-red-600">{errors.country}</p>}
+              {formData.country && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.country === "NP" 
+                    ? "✓ eSewa, Khalti & Card payments available" 
+                    : "✓ Card payments available"}
+                </p>
+              )}
+            </div>
+
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -236,6 +285,31 @@ function RegisterContent() {
                   One number
                 </div>
               </div>
+            </div>
+
+            {/* ✅ Confirm Password Field */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10 ${errors.confirmPassword ? "border-red-300" : "border-gray-300"}`}
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+              {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                <p className="mt-1 text-sm text-green-600 flex items-center">
+                  <span className="mr-1">✓</span> Passwords match
+                </p>
+              )}
             </div>
 
             {/* Terms */}
