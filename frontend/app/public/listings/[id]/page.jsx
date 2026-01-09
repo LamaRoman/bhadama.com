@@ -476,7 +476,7 @@ export default function PublicListingDetail() {
                     }`}
                   >
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    {tab === "reviews" && reviewStats.total > 0 && (
+                    {tab === "reviews" &&  reviewStats.total > 0 && (
                       <span className="ml-2 text-sm bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">
                         {reviewStats.total}
                       </span>
