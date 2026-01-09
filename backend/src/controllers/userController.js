@@ -196,13 +196,7 @@ export async function uploadProfilePhoto(req, res) {
     });
 
     // Upload to Cloudinary
-    const result = await uploadToCloudinary(req.file.buffer, {
-      folder: `profiles/${userId}`,
-      public_id: `profile_${Date.now()}`,
-      transformation: [
-        { width: 400, height: 400, crop: 'fill', gravity: 'face' }
-      ]
-    });
+    const result = await uploadToCloudinary(req.file, `profiles/${userId}`);
 
     // Delete old photo from Cloudinary if it exists
     if (currentUser.profilePhoto && currentUser.profilePhoto.includes('cloudinary')) {

@@ -7,11 +7,14 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "build": "prisma generate",
-    "start": "node src/app.js",
+    "start": "prisma migrate deploy && node src/app.js",
+    "start:dev": "node src/app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
     "seed:tiers": "node prisma/seeds/tierSeed.mjs"
   },
+  
   "keywords": [],
   "author": "",
   "license": "ISC",

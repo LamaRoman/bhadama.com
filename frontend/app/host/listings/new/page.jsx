@@ -95,10 +95,8 @@ export default function NewListing() {
       // Prepare listing data
       const listingData = {
         ...form,
-        hourlyRate: form.hourlyRate ? parseFloat(form.hourlyRate) : null,
-        halfDayRate: form.halfDayRate ? parseFloat(form.halfDayRate) : null,
-        fullDayRate: form.fullDayRate ? parseFloat(form.fullDayRate) : null,
-        minHours: parseInt(form.minHours),
+        hourlyRate: form.hourlyRate ? Math.round(parseFloat(form.hourlyRate) * 100) / 100 : null,
+       minHours: parseInt(form.minHours),
         maxHours: parseInt(form.maxHours),
         capacity: form.capacity ? parseInt(form.capacity) : null,
         amenities: selectedAmenities,
@@ -163,7 +161,7 @@ export default function NewListing() {
 
       setSuccess("🎉 Listing published successfully! Redirecting...");
       setUploadProgress("");
-      
+      console.log('Sending hourlyRate:', parseFloat(form.hourlyRate));
       setTimeout(() => {
         router.push("/host/dashboard");
       }, 2000);
@@ -314,44 +312,6 @@ export default function NewListing() {
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Per hour</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Half Day Rate
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="80.00"
-                    className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
-                    value={form.halfDayRate}
-                    onChange={(e) => setForm({ ...form, halfDayRate: e.target.value })}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">4 hours</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Day Rate
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="150.00"
-                    className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
-                    value={form.fullDayRate}
-                    onChange={(e) => setForm({ ...form, fullDayRate: e.target.value })}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">8+ hours</p>
               </div>
             </div>
 

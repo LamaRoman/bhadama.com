@@ -78,6 +78,9 @@ export const createListing = async (req, res) => {
       rules,
       featured
     } = req.body;
+    console.log('🔍 Received hourlyRate from frontend:', hourlyRate);
+    console.log('🔍 Type:', typeof hourlyRate);
+    console.log('🔍 parseFloat result:', parseFloat(hourlyRate));
     
     const hostId = req.user.userId;
 
