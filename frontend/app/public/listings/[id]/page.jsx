@@ -125,50 +125,95 @@ export default function PublicListingDetail() {
     }
   }, [user, listing, reviews, id]);
 
-  // Handle booking
-  const handleBooking = async () => {
-    if (!user) {
-      toast.error("Please log in to book");
-      router.push(`/auth/login?redirect=${encodeURIComponent(`/public/listings/${id}`)}`);
-      return;
+
+// Handle booking with eSewa payment redirect
+const handleBooking = async () => {
+  // Check authentication
+  if (!user) {
+    toast.error("Please log in to book");
+    router.push(`/auth/login?redirect=${encodeURIComponent(`/public/listings/${id}`)}`);
+    return;
+  }
+
+  // Validate booking data
+  if (!bookingData.date || !bookingData.startTime || !bookingData.endTime) {
+    toast.error("Please complete all booking details");
+    return;
+  }
+
+  if (bookingData.guests > (listing?.capacity || 100)) {
+    toast.error(`Maximum capacity is ${listing.capacity} guests`);
+    return;
+  }
+
+  setIsBooking(true);
+  
+  try {
+    const response = await api("/api/bookings", {
+      method: "POST",
+      body: {
+        listingId: listing.id,
+        bookingDate: bookingData.date,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        guests: bookingData.guests,
+      },
+    });
+
+    if (response.error) {
+      throw new Error(response.error);
     }
 
-    if (!bookingData.date || !bookingData.startTime || !bookingData.endTime) {
-      toast.error("Please complete all booking details");
-      return;
-    }
-
-    if (bookingData.guests > (listing?.capacity || 100)) {
-      toast.error(`Maximum capacity is ${listing.capacity} guests`);
-      return;
-    }
-
-    setIsBooking(true);
-    try {
-      const data = await api("/api/bookings", {
-        method: "POST",
-        body: {
-          listingId: listing.id,
-          userId: user.id,
-          bookingDate: bookingData.date,
-          startTime: bookingData.startTime,
-          endTime: bookingData.endTime,
-          guests: bookingData.guests,
-        },
-      });
-
-      if (data.error) throw new Error(data.error);
-
-      toast.success("Booking Confirmed!");
+    // Check if payment is required
+    if (response.payment) {
+      toast.success("Redirecting to payment...");
+      
+      // Handle different payment types
+      if (response.payment.method === "POST") {
+        // eSewa uses form POST - create and submit a hidden form
+        submitPaymentForm(response.payment);
+      } else {
+        // For redirect-based payments (Khalti, etc.)
+        window.location.href = response.payment.url;
+      }
+    } else {
+      // No payment required (free booking or already paid)
+      toast.success("Booking confirmed!");
       setBookingData({ date: "", startTime: "", endTime: "", guests: 1 });
-      setTimeout(() => router.push("/users/dashboard"), 1500);
-    } catch (err) {
-      toast.error(err.message || "Booking failed");
-    } finally {
-      setIsBooking(false);
+      router.push(`/booking/success?bookingId=${response.booking.id}`);
     }
-  };
+  } catch (err) {
+    console.error("Booking error:", err);
+    toast.error(err.message || "Booking failed. Please try again.");
+    setIsBooking(false);
+  }
+};
 
+// Helper function to submit eSewa payment form
+const submitPaymentForm = (paymentData) => {
+  const { url, params } = paymentData;
+  
+  // Create a hidden form
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = url;
+  form.style.display = "none";
+  
+  // Add all payment parameters as hidden inputs
+  Object.entries(params).forEach(([key, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = String(value);
+    form.appendChild(input);
+  });
+  
+  // Append form to body and submit
+  document.body.appendChild(form);
+  
+  console.log("🚀 Submitting eSewa payment form:", { url, params });
+  form.submit();
+};
   // Effects
   useEffect(() => {
     if (id) fetchListingData();

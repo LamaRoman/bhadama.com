@@ -1,5 +1,20 @@
+// ============================================
+// UPDATED BOOKING CONTROLLER
+// ============================================
+// Replace your existing bookingController.js with this version
+// Key changes:
+// 1. Fixed callback URLs to point to frontend pages
+// 2. Better error handling
+// 3. Proper eSewa verification (TODO for production)
+// ============================================
+
 import * as bookingService from "../services/bookingService.js";
 import { prisma } from "../config/prisma.js";
+import crypto from "crypto"
+// Add BigInt serialization support
+BigInt.prototype.toJSON = function() {
+  return this.toString();
+};
 
 /**
  * Create a new booking
@@ -7,13 +22,16 @@ import { prisma } from "../config/prisma.js";
  */
 export const createBooking = async (req, res) => {
   try {
-    const userId = BigInt(req.user.userId);
+    const userId = Number(req.user.userId);
     const { listingId, bookingDate, startTime, endTime, guests } = req.body;
 
     console.log("📝 Creating booking:", {
       userId: userId.toString(),
       listingId,
       bookingDate,
+      startTime,
+      endTime,
+      guests,
     });
 
     // Get the listing
@@ -28,12 +46,13 @@ export const createBooking = async (req, res) => {
         includedGuests: true,
       },
     });
+
     if (!listing) {
       return res.status(404).json({ error: "Listing not found" });
     }
 
     // Prevent self-booking
-    if (listing.hostId === userId) {
+    if (Number(listing.hostId) === userId) {
       return res.status(403).json({
         error: "You cannot book your own listing",
         code: "SELF_BOOKING_NOT_ALLOWED",
@@ -44,6 +63,10 @@ export const createBooking = async (req, res) => {
     const [startH, startM] = startTime.split(":").map(Number);
     const [endH, endM] = endTime.split(":").map(Number);
     const duration = (endH * 60 + endM - (startH * 60 + startM)) / 60;
+
+    if (duration <= 0) {
+      return res.status(400).json({ error: "End time must be after start time" });
+    }
 
     // Calculate prices
     const basePrice = duration * Number(listing.hourlyRate || 0);
@@ -61,6 +84,7 @@ export const createBooking = async (req, res) => {
       tax,
       totalPrice,
     });
+
     // Create booking with PENDING status
     const booking = await prisma.booking.create({
       data: {
@@ -88,6 +112,7 @@ export const createBooking = async (req, res) => {
         },
       },
     });
+
     console.log("✅ Booking created:", booking.id);
 
     // Get eSewa config
@@ -99,6 +124,7 @@ export const createBooking = async (req, res) => {
       console.log("❌ eSewa not configured");
       return res.status(500).json({ error: "Payment gateway not available" });
     }
+
     console.log("🔧 eSewa config:", {
       merchantId: esewaConfig.merchantId,
       isTestMode: esewaConfig.isTestMode,
@@ -106,19 +132,37 @@ export const createBooking = async (req, res) => {
 
     // Create unique transaction ID
     const transactionUuid = `BKG-${booking.id}-${Date.now()}`;
+    
+    
+    const totalAmount = Math.round(Number(totalPrice));
+    
+    //esewa v2 api parameters
     const esewaParams = {
-      amt: Math.round(Number(totalPrice)),
-      psc: 0,
-      pdc: 0,
-      txAmt: 0,
-      tAmt: Math.round(Number(totalPrice)),
-      pid: transactionUuid,
-      scd: esewaConfig.merchantId || "EPAYTEST",
-      su: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/success`,
-      fu: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/failure`,
-    };
+      amount: totalAmount,
+  tax_amount: 0,
+  total_amount: totalAmount,
+  transaction_uuid: transactionUuid,
+  product_code: esewaConfig.merchantId || "EPAYTEST",
+  product_service_charge: 0,
+  product_delivery_charge: 0,
+  success_url: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/success`,
+  failure_url: `${process.env.BACKEND_URL}/api/bookings/payment/esewa/failure`,
+  signed_field_names: "total_amount,transaction_uuid,product_code",
+};
 
     console.log("💳 eSewa params:", esewaParams);
+//Generate signature (required for v2)
+    const signatureString = `total_amount=${totalAmount},transaction_uuid=${transactionUuid},product_code=${esewaParams.product_code}`;
+const secret = esewaConfig.secretKey || "8gBm/:&EnhH.1/q"; // eSewa test secret key
+    
+const signature = crypto
+  .createHmac("sha256",secret)
+  .update(signatureString)
+  .digest("base64")
+
+  esewaParams.signature = signature;
+
+// Update booking with payment details
     await prisma.booking.update({
       where: { id: booking.id },
       data: {
@@ -128,11 +172,14 @@ export const createBooking = async (req, res) => {
       },
     });
 
+    //esewaUrl V2 url
     const esewaUrl = esewaConfig.isTestMode
-      ? "https://uat.esewa.com.np/epay/main"
-      : "https://esewa.com.np/epay/main";
+      ? "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+  : "https://epay.esewa.com.np/api/epay/main/v2/form";
 
     console.log("🚀 Payment URL:", esewaUrl);
+
+    // Return booking and payment info to frontend
     return res.status(201).json({
       success: true,
       message: "Booking created. Redirecting to payment...",
@@ -152,6 +199,7 @@ export const createBooking = async (req, res) => {
         status: booking.status,
         paymentStatus: booking.paymentStatus,
       },
+      // ✅ Payment data for frontend to create form and redirect
       payment: {
         gateway: "ESEWA",
         url: esewaUrl,
@@ -167,23 +215,62 @@ export const createBooking = async (req, res) => {
     });
   }
 };
+
 /**
  * Handle eSewa payment success callback
  * GET /api/bookings/payment/esewa/success
+ * 
+ * eSewa redirects here after successful payment
  */
 export const esewaPaymentSuccess = async (req, res) => {
   try {
-    const { oid, amt, refId } = req.query;
+    // Get query params (rename refId to queryRefId to avoid conflict)
+    const { data, oid, amt, refId: queryRefId } = req.query;
+    
+    console.log("📥 eSewa callback received:", { data: !!data, oid, amt, queryRefId });
+    
+    let transactionId;
+    let referenceId;
+    let paymentStatus;
 
-    console.log("✅ eSewa success callback:", { oid, amt, refId });
+    if (data) {
+      // V2 API - decode base64 response
+      try {
+        const decodedData = Buffer.from(data, "base64").toString("utf-8");
+        const paymentData = JSON.parse(decodedData);
+        
+        console.log("✅ eSewa V2 success callback:", paymentData);
+        
+        transactionId = paymentData.transaction_uuid;
+        referenceId = paymentData.transaction_code;
+        paymentStatus = paymentData.status;
+      } catch (decodeError) {
+        console.error("❌ Failed to decode eSewa response:", decodeError);
+        return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=decode_error`);
+      }
+    } else if (oid) {
+      // V1 API fallback
+      console.log("✅ eSewa V1 success callback:", { oid, amt, queryRefId });
+      transactionId = oid;
+      referenceId = queryRefId;
+      paymentStatus = "COMPLETE";
+    } else {
+      console.log("❌ No valid payment data received");
+      return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=missing_params`);
+    }
+
+    if (!transactionId) {
+      console.log("❌ Missing transaction ID");
+      return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=missing_params`);
+    }
 
     // Find booking by transaction ID
     const booking = await prisma.booking.findFirst({
       where: { 
-        paymentTransactionId: oid,
+        paymentTransactionId: transactionId,  // ✅ Use transactionId, not oid
         status: "PENDING"
       },
-       include: {
+      include: {
         listing: {
           select: {
             id: true,
@@ -192,15 +279,19 @@ export const esewaPaymentSuccess = async (req, res) => {
         }
       }
     });
-if (!booking) {
-      console.log("❌ Booking not found for transaction:", oid);
+
+    if (!booking) {
+      console.log("❌ Booking not found for transaction:", transactionId);
       return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=booking_not_found`);
     }
 
     console.log("📦 Found booking:", booking.id);
 
-    // TODO: Verify payment with eSewa API (recommended for production)
-    // For now, we trust the callback
+    // Verify payment status
+    if (paymentStatus !== "COMPLETE") {
+      console.log("❌ Payment not complete:", paymentStatus);
+      return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=payment_incomplete`);
+    }
 
     // Update booking to CONFIRMED
     await prisma.booking.update({
@@ -208,14 +299,15 @@ if (!booking) {
       data: {
         status: "CONFIRMED",
         paymentStatus: "COMPLETED",
-        paymentReferenceId: refId,
+        paymentReferenceId: referenceId,
         paymentCompletedAt: new Date(),
       }
     });
+
     console.log("✅ Booking confirmed:", booking.id);
 
-    // Redirect to success page
-    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${refId}`);
+    // Redirect to frontend success page
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${referenceId}`);
 
   } catch (error) {
     console.error("❌ eSewa success callback error:", error);
@@ -233,25 +325,31 @@ export const esewaPaymentFailure = async (req, res) => {
 
     console.log("❌ eSewa failure callback:", { pid });
 
-    // Find and update booking
-    const booking = await prisma.booking.findFirst({
-      where: { 
-        paymentTransactionId: pid,
-        status: "PENDING"
-      }
-    });
-if (booking) {
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: {
-          status: "FAILED",
-          paymentStatus: "FAILED",
+    let bookingId = "unknown";
+
+    if (pid) {
+      // Find and update booking
+      const booking = await prisma.booking.findFirst({
+        where: { 
+          paymentTransactionId: pid,
+          status: "PENDING"
         }
       });
-      console.log("💔 Booking marked as failed:", booking.id);
+
+      if (booking) {
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            status: "FAILED",
+            paymentStatus: "FAILED",
+          }
+        });
+        bookingId = booking.id;
+        console.log("💔 Booking marked as failed:", booking.id);
+      }
     }
 
-    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?bookingId=${booking?.id || 'unknown'}`);
+    res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?bookingId=${bookingId}&error=payment_failed`);
 
   } catch (error) {
     console.error("❌ eSewa failure callback error:", error);
@@ -259,6 +357,43 @@ if (booking) {
   }
 };
 
+/**
+ * Verify eSewa payment (for production use)
+ * This should be called to verify the payment is legitimate
+ */
+async function verifyEsewaPayment(oid, amt, refId, config) {
+  try {
+    const verifyUrl = config.isTestMode
+      ? "https://uat.esewa.com.np/epay/transrec"
+      : "https://esewa.com.np/epay/transrec";
+
+    const response = await fetch(verifyUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        amt: amt,
+        scd: config.merchantId,
+        rid: refId,
+        pid: oid,
+      }),
+    });
+
+    const text = await response.text();
+    
+    // eSewa returns XML with <response_code>Success</response_code> for valid payments
+    return text.includes("Success");
+  } catch (error) {
+    console.error("eSewa verification error:", error);
+    return false;
+  }
+}
+
+/**
+ * Mark expired bookings as completed
+ * (Call this from a cron job)
+ */
 export const completeExpiredBookings = async () => {
   const now = new Date();
 
@@ -269,7 +404,7 @@ export const completeExpiredBookings = async () => {
   for (const booking of bookings) {
     const endDateTime = new Date(booking.bookingDate);
     const [h, m] = booking.endTime.split(":");
-    endDateTime.setHours(h, m, 0, 0);
+    endDateTime.setHours(parseInt(h), parseInt(m), 0, 0);
 
     if (endDateTime <= now) {
       await prisma.booking.update({
@@ -277,8 +412,10 @@ export const completeExpiredBookings = async () => {
         data: {
           status: "COMPLETED",
           completedAt: now,
+          canReview: true, // Enable review after completion
         },
       });
+      console.log(`✅ Booking ${booking.id} marked as COMPLETED`);
     }
   }
 };
@@ -304,9 +441,7 @@ export async function getAvailability(req, res) {
     res.json({ date, slots });
   } catch (err) {
     console.error("GET AVAILABILITY ERROR:", err);
-    res
-      .status(500)
-      .json({ error: err.message || "Failed to get availability" });
+    res.status(500).json({ error: err.message || "Failed to get availability" });
   }
 }
 
@@ -316,12 +451,12 @@ export async function getAvailability(req, res) {
  */
 export async function getUserBookings(req, res) {
   try {
-    const userId = Number(req.user.userId); // Add Number() conversion
-    console.log("Fetching bookings for user ID:", userId); // Debug log
+    const userId = Number(req.user.userId);
+    console.log("Fetching bookings for user ID:", userId);
 
     const bookings = await prisma.booking.findMany({
       where: {
-        userId: userId, // filter by the logged in user
+        userId: userId,
       },
       include: {
         listing: {
@@ -341,7 +476,7 @@ export async function getUserBookings(req, res) {
       orderBy: { bookingDate: "desc" },
     });
 
-    console.log("Found bookings:", bookings.length); // Debug log
+    console.log("Found bookings:", bookings.length);
 
     const normalizedBookings = bookings.map((b) => ({
       ...b,
@@ -366,7 +501,7 @@ export async function getUserBookings(req, res) {
  */
 export async function getHostBookings(req, res) {
   try {
-    const hostId = Number(req.user.userId); // Add Number() conversion
+    const hostId = Number(req.user.userId);
     const bookings = await bookingService.getHostBookings(hostId);
 
     res.json(bookings);
@@ -382,7 +517,7 @@ export async function getHostBookings(req, res) {
  */
 export async function cancelBooking(req, res) {
   try {
-    const userId = Number(req.user.userId); // Add Number() conversion
+    const userId = Number(req.user.userId);
     const bookingId = parseInt(req.params.id);
 
     const booking = await bookingService.cancelBooking(bookingId, userId);

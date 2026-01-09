@@ -415,6 +415,13 @@ model Booking {
   refunds            Refund[]
   review             Review?
 
+// Payment fields (for booking-specific payments)
+  paymentGateway        String?
+  paymentTransactionId  String?
+  paymentReferenceId    String?
+  paymentDetails        Json?
+  paymentCompletedAt    DateTime?
+  
   @@index([userId])
   @@index([listingId])
   @@index([status])
