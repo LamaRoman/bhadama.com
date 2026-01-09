@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "build": "prisma generate",
-    "start": "prisma migrate deploy && node src/app.js",
+    "start": "npx prisma migrate resolve --rolled-back 20260109065223_add_country_fields || true && prisma migrate deploy && node src/app.js",
     "start:dev": "node src/app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
