@@ -161,6 +161,7 @@ model User {
   name                         String
   email                        String              @unique
   password                     String?
+  country String?
   role                         Role                @default(USER)
   createdAt                    DateTime            @default(now())
   updatedAt                    DateTime            @updatedAt

@@ -25,11 +25,11 @@ const generateToken = (user) => {
 
 /**
  * Register new user with email/password
- * NOW WITH AUTO EMAIL VERIFICATION SENDING
+ * NOW WITH COUNTRY FIELD
  */
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role = "USER" } = req.body;
+    const { name, email, password, role = "USER", country } = req.body;
 
     // Validate input
     const validation = validateRegistration(req.body);
@@ -38,6 +38,16 @@ export const register = async (req, res) => {
         error: validation.errors[0],
         errors: validation.errors 
       });
+    }
+
+    // Validate country (optional but recommended)
+    if (country && typeof country !== "string") {
+      return res.status(400).json({ error: "Invalid country format" });
+    }
+
+    // Country should be ISO 3166-1 alpha-2 code (e.g., "NP", "US")
+    if (country && country.length !== 2) {
+      return res.status(400).json({ error: "Country must be a 2-letter country code" });
     }
 
     // Check if user already exists
@@ -54,22 +64,23 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user WITHOUT OTP fields
+    // Create user WITH COUNTRY
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role: role === "HOST" ? "HOST" : "USER",
-        emailVerified: false, // Important
+        emailVerified: false,
+        country: country?.toUpperCase() || null, // Store as uppercase
       },
     });
 
-    console.log("✅ User created in database:", { 
+    console.log("✅ User created:", { 
       id: user.id, 
       email: user.email, 
       role: user.role,
-      emailVerified: user.emailVerified 
+      country: user.country,
     });
 
     // Generate JWT
@@ -87,6 +98,7 @@ export const register = async (req, res) => {
         profilePhoto: user.profilePhoto || null,
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
+        country: user.country, // Include country in response
       },
     });
 
@@ -99,17 +111,13 @@ export const register = async (req, res) => {
   }
 };
 
-
 /**
- * Login user with email/password
+ * Login - Include country in response
  */
 export const login = async (req, res) => {
   try {
-       console.log('🔍 req.body:', req.body);
-    console.log('🔍 email type:', typeof req.body?.email);
     const { email, password } = req.body;
 
-    // Validate input
     const validation = validateLogin(req.body);
     if (!validation.isValid) {
       return res.status(400).json({ 
@@ -123,7 +131,6 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    // Better message for Google-only accounts
     if (user.googleId && !user.password) {
       return res.status(400).json({ 
         error: "This account uses Google Sign-In. Please use the 'Sign in with Google' button." 
@@ -137,7 +144,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // Extra check for password existence
     if (!user.password) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -167,6 +173,7 @@ export const login = async (req, res) => {
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
         phone: user.phone,
+        country: user.country, // Include country
       }
     });
   } catch (error) {
@@ -176,7 +183,7 @@ export const login = async (req, res) => {
 };
 
 /**
- * Get current user
+ * Get current user - Include country
  */
 export const getCurrentUser = async (req, res) => {
   try {
@@ -194,6 +201,7 @@ export const getCurrentUser = async (req, res) => {
         googleId: true,
         emailVerified: true,
         phoneVerified: true,
+        country: true, // Include country
       }
     });
 

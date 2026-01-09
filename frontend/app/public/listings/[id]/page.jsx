@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../../contexts/AuthContext.js";
 import { toast, Toaster } from "react-hot-toast";
 
-// Import modular components from local components folder
+// Import modular components
 import {
   ImageGallery,
   StarRating,
@@ -15,10 +15,14 @@ import {
   HostCard,
 } from "../components";
 
+// Import new payment modals
+import PaymentMethodModal from "../../../../components/modals/PaymentMethodModal";
+import CountrySelectionModal from "../../../../components/modals/CountrySelectionModal";
+
 export default function PublicListingDetail() {
   const { id } = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   // Listing & Reviews State
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +50,12 @@ export default function PublicListingDetail() {
   const [isBooking, setIsBooking] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [showFloatingBar, setShowFloatingBar] = useState(false);
+
+  // NEW: Payment Modal States
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCountryModal, setShowCountryModal] = useState(false);
+  const [pendingBookingData, setPendingBookingData] = useState(null);
+  const [calculatedPrice, setCalculatedPrice] = useState(0);
 
   // Refs
   const calendarRef = useRef(null);
@@ -125,95 +135,163 @@ export default function PublicListingDetail() {
     }
   }, [user, listing, reviews, id]);
 
+  // Calculate total price
+  const calculateTotalPrice = useCallback(() => {
+    if (!bookingData.startTime || !bookingData.endTime || !listing) return 0;
+    
+    const [startH, startM] = bookingData.startTime.split(":").map(Number);
+    const [endH, endM] = bookingData.endTime.split(":").map(Number);
+    const duration = (endH * 60 + endM - (startH * 60 + startM)) / 60;
+    
+    const basePrice = duration * Number(listing.hourlyRate || 0);
+    const extraGuests = Math.max(0, bookingData.guests - (listing.includedGuests || 10));
+    const extraGuestPrice = extraGuests * Number(listing.extraGuestCharge || 0);
+    const subtotal = basePrice + extraGuestPrice;
+    const serviceFee = subtotal * 0.1;
+    const tax = subtotal * 0.05;
+    
+    return Math.round(subtotal + serviceFee + tax);
+  }, [bookingData, listing]);
 
-// Handle booking with eSewa payment redirect
-const handleBooking = async () => {
-  // Check authentication
-  if (!user) {
-    toast.error("Please log in to book");
-    router.push(`/auth/login?redirect=${encodeURIComponent(`/public/listings/${id}`)}`);
-    return;
-  }
+  // Update calculated price when booking data changes
+  useEffect(() => {
+    setCalculatedPrice(calculateTotalPrice());
+  }, [calculateTotalPrice]);
 
-  // Validate booking data
-  if (!bookingData.date || !bookingData.startTime || !bookingData.endTime) {
-    toast.error("Please complete all booking details");
-    return;
-  }
-
-  if (bookingData.guests > (listing?.capacity || 100)) {
-    toast.error(`Maximum capacity is ${listing.capacity} guests`);
-    return;
-  }
-
-  setIsBooking(true);
+  // ============================================
+  // UPDATED BOOKING FLOW
+  // ============================================
   
-  try {
-    const response = await api("/api/bookings", {
-      method: "POST",
-      body: {
-        listingId: listing.id,
-        bookingDate: bookingData.date,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        guests: bookingData.guests,
-      },
-    });
-
-    if (response.error) {
-      throw new Error(response.error);
+  // Step 1: User clicks "Reserve Now"
+  const handleBooking = async () => {
+    // Check authentication
+    if (!user) {
+      toast.error("Please log in to book");
+      router.push(`/auth/login?redirect=${encodeURIComponent(`/public/listings/${id}`)}`);
+      return;
     }
 
-    // Check if payment is required
-    if (response.payment) {
-      toast.success("Redirecting to payment...");
-      
-      // Handle different payment types
-      if (response.payment.method === "POST") {
-        // eSewa uses form POST - create and submit a hidden form
-        submitPaymentForm(response.payment);
-      } else {
-        // For redirect-based payments (Khalti, etc.)
-        window.location.href = response.payment.url;
+    // Validate booking data
+    if (!bookingData.date || !bookingData.startTime || !bookingData.endTime) {
+      toast.error("Please complete all booking details");
+      return;
+    }
+
+    if (bookingData.guests > (listing?.capacity || 100)) {
+      toast.error(`Maximum capacity is ${listing.capacity} guests`);
+      return;
+    }
+
+    // Check if user has country set
+    if (!user.country) {
+      // Show country selection modal first
+      setShowCountryModal(true);
+      return;
+    }
+
+    // Show payment method modal
+    setShowPaymentModal(true);
+  };
+
+  // Step 2: Handle country selection (for existing users without country)
+  const handleCountrySelect = async (countryCode) => {
+    try {
+      // Update user's country via API
+      const response = await api("/api/users", {
+        method: "PUT",
+        body: { country: countryCode },
+      });
+
+      if (response.error) {
+        toast.error(response.error);
+        return;
       }
-    } else {
-      // No payment required (free booking or already paid)
-      toast.success("Booking confirmed!");
-      setBookingData({ date: "", startTime: "", endTime: "", guests: 1 });
-      router.push(`/booking/success?bookingId=${response.booking.id}`);
-    }
-  } catch (err) {
-    console.error("Booking error:", err);
-    toast.error(err.message || "Booking failed. Please try again.");
-    setIsBooking(false);
-  }
-};
 
-// Helper function to submit eSewa payment form
-const submitPaymentForm = (paymentData) => {
-  const { url, params } = paymentData;
-  
-  // Create a hidden form
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = url;
-  form.style.display = "none";
-  
-  // Add all payment parameters as hidden inputs
-  Object.entries(params).forEach(([key, value]) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = key;
-    input.value = String(value);
-    form.appendChild(input);
-  });
-  
-  // Append form to body and submit
-  document.body.appendChild(form);
-  
-  console.log("🚀 Submitting eSewa payment form:", { url, params });
-  form.submit();
-};
+      // Update local user state
+      if (updateUser) {
+        updateUser({ ...user, country: countryCode });
+      }
+
+      toast.success("Country updated!");
+      setShowCountryModal(false);
+      
+      // Now show payment modal
+      setShowPaymentModal(true);
+    } catch (error) {
+      toast.error("Failed to update country");
+    }
+  };
+
+  // Step 3: Handle payment method selection
+  const handlePaymentMethodSelect = async (paymentMethod) => {
+    setIsBooking(true);
+    setShowPaymentModal(false);
+
+    try {
+      // Create booking with selected payment method
+      const response = await api("/api/bookings", {
+        method: "POST",
+        body: {
+          listingId: listing.id,
+          bookingDate: bookingData.date,
+          startTime: bookingData.startTime,
+          endTime: bookingData.endTime,
+          guests: bookingData.guests,
+          paymentMethod: paymentMethod, // NEW: Pass selected payment method
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Handle payment redirect
+      if (response.payment) {
+        toast.success("Redirecting to payment...");
+        
+        if (response.payment.method === "POST") {
+          // eSewa/Khalti - Form POST redirect
+          submitPaymentForm(response.payment);
+        } else {
+          // Card (Dodo) - Direct redirect
+          window.location.href = response.payment.url;
+        }
+      } else {
+        // No payment required (shouldn't happen normally)
+        toast.success("Booking confirmed!");
+        router.push(`/booking/payment-success?bookingId=${response.booking.id}`);
+      }
+    } catch (error) {
+      console.error("Booking error:", error);
+      toast.error(error.message || "Booking failed. Please try again.");
+      setShowPaymentModal(true); // Re-show modal on error
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  // Helper: Submit payment form (for eSewa/Khalti)
+  const submitPaymentForm = (paymentData) => {
+    const { url, params } = paymentData;
+    
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = url;
+    form.style.display = "none";
+    
+    Object.entries(params).forEach(([key, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = String(value);
+      form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    console.log("🚀 Submitting payment form:", { url, params });
+    form.submit();
+  };
+
   // Effects
   useEffect(() => {
     if (id) fetchListingData();
@@ -278,6 +356,24 @@ const submitPaymentForm = (paymentData) => {
     <div className="min-h-screen bg-stone-50">
       <Toaster position="top-right" />
 
+      {/* PAYMENT METHOD MODAL */}
+      <PaymentMethodModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSelect={handlePaymentMethodSelect}
+        userCountry={user?.country || "NP"}
+        amount={calculatedPrice}
+        currency={user?.country === "NP" ? "NPR" : "USD"}
+        loading={isBooking}
+      />
+
+      {/* COUNTRY SELECTION MODAL */}
+      <CountrySelectionModal
+        isOpen={showCountryModal}
+        onClose={() => setShowCountryModal(false)}
+        onSelect={handleCountrySelect}
+      />
+
       {/* HERO SECTION */}
       <div ref={heroRef} className="relative h-[65vh] md:h-[75vh] bg-stone-900 overflow-hidden">
         <ImageGallery images={listing.images} title={listing.title} />
@@ -336,13 +432,13 @@ const submitPaymentForm = (paymentData) => {
 
       {/* FLOATING BOOKING BAR */}
       {showFloatingBar && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-stone-500">Total</p>
                 <p className="text-2xl font-bold text-emerald-600">
-                  ${(listing?.hourlyRate || 0) * (bookingData.startTime && bookingData.endTime ? 1 : 0)}
+                  Rs.{calculatedPrice.toLocaleString()}
                 </p>
               </div>
               <button
@@ -354,7 +450,7 @@ const submitPaymentForm = (paymentData) => {
                     : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg"
                 }`}
               >
-                {isBooking ? "Booking..." : "Book Now"}
+                {isBooking ? "Processing..." : "Book Now"}
               </button>
             </div>
           </div>

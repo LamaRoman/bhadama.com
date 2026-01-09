@@ -4,7 +4,151 @@ import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.j
 import crypto from "crypto";
 import smsService from "../services/sms/smsService.js";
 
-// ============ CONTROLLER FUNCTIONS ============
+// Valid country codes (add more as needed)
+const VALID_COUNTRY_CODES = [
+  "NP", "IN", "US", "GB", "AU", "CA", "DE", "FR", "JP", "CN",
+  "AE", "SG", "MY", "TH", "BD", "LK", "PK", "KR", "NL", "IT",
+  "ES", "BR", "MX", "ZA", "NZ", "IE", "SE", "NO", "DK", "FI",
+  "CH", "AT", "BE", "PT", "PL", "RU", "QA", "SA", "KW", "BH",
+  "OM", "PH", "ID", "VN", "HK", "TW"
+];
+
+/**
+ * Update user profile
+ * PUT /api/users
+ * NOW WITH COUNTRY FIELD
+ */
+export async function updateUser(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { name, email, phone, country } = req.body;
+
+    // Get current user
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const updateData = {};
+
+    // Handle email update
+    if (email && email !== currentUser.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (emailExists) {
+        return res.status(400).json({ error: "Email already in use" });
+      }
+      
+      updateData.email = email;
+      updateData.emailVerified = false; // Reset verification
+    }
+
+    // Handle name update (with 30-day cooldown)
+    if (name && name !== currentUser.name) {
+      if (currentUser.lastNameChange) {
+        const daysSinceChange = Math.floor(
+          (new Date() - new Date(currentUser.lastNameChange)) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysSinceChange < 30) {
+          return res.status(400).json({
+            error: `You can change your name again in ${30 - daysSinceChange} days`,
+          });
+        }
+      }
+
+      updateData.name = name;
+      updateData.lastNameChange = new Date();
+    }
+
+    // Handle phone update
+    if (phone !== undefined) {
+      if (!phone || phone.trim() === '') {
+        updateData.phone = null;
+        updateData.phoneVerified = false;
+        updateData.phoneCountryCode = null;
+      } else if (phone !== currentUser.phone) {
+        updateData.phone = phone;
+        updateData.phoneVerified = false;
+      }
+    }
+
+    // Handle country update (NEW)
+    if (country !== undefined) {
+      if (!country || country.trim() === '') {
+        // Allow clearing country (though not recommended)
+        updateData.country = null;
+      } else {
+        // Validate country code
+        const countryCode = country.toUpperCase().trim();
+        
+        if (countryCode.length !== 2) {
+          return res.status(400).json({ 
+            error: "Country must be a 2-letter country code (e.g., NP, US, IN)" 
+          });
+        }
+
+        if (!VALID_COUNTRY_CODES.includes(countryCode)) {
+          return res.status(400).json({ 
+            error: "Invalid country code. Please select a valid country." 
+          });
+        }
+
+        updateData.country = countryCode;
+      }
+    }
+
+    // Only update if there are changes
+    if (Object.keys(updateData).length === 0) {
+      return res.json({
+        message: "No changes to update",
+        user: {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          role: currentUser.role,
+          profilePhoto: currentUser.profilePhoto,
+          emailVerified: currentUser.emailVerified,
+          phone: currentUser.phone,
+          phoneVerified: currentUser.phoneVerified,
+          country: currentUser.country,
+        },
+      });
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        profilePhoto: true,
+        lastNameChange: true,
+        emailVerified: true,
+        phone: true,
+        phoneVerified: true,
+        phoneCountryCode: true,
+        country: true,
+      },
+    });
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (err) {
+    console.error("UPDATE USER ERROR:", err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+}
 
 /**
  * Get user profile
@@ -24,12 +168,11 @@ export async function getProfile(req, res) {
         profilePhoto: true,
         lastNameChange: true,
         createdAt: true,
-        // Email verification fields
         emailVerified: true,
-        // Phone verification fields
         phone: true,
         phoneVerified: true,
         phoneCountryCode: true,
+        country: true, // Include country
       },
     });
 
@@ -43,140 +186,6 @@ export async function getProfile(req, res) {
     res.status(500).json({ error: "Server error" });
   }
 }
-
-/**
- * Update user profile
- * PUT /api/users
- */
-export async function updateUser(req, res) {
-  try {
-    const userId = req.user.userId;
-    const { name, email, phone } = req.body;
-
-    // Get current user
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!currentUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const updateData = { email };
-
-    // Check if name is being changed
-    if (name && name !== currentUser.name) {
-      // Check 30-day cooldown
-      if (currentUser.lastNameChange) {
-        const daysSinceChange = Math.floor(
-          (new Date() - new Date(currentUser.lastNameChange)) /
-            (1000 * 60 * 60 * 24)
-        );
-
-        if (daysSinceChange < 30) {
-          return res.status(400).json({
-            error: `You can change your name again in ${
-              30 - daysSinceChange
-            } days`,
-          });
-        }
-      }
-
-      updateData.name = name;
-      updateData.lastNameChange = new Date();
-    }
-
-    // Check if email is already taken by another user
-    if (email !== currentUser.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (emailExists) {
-        return res.status(400).json({ error: "Email already in use" });
-      }
-      
-      // Reset email verification if email changed
-      updateData.emailVerified = false;
-    }
-
-    // Handle phone number update
-    if (phone !== undefined) {
-      // If phone is being cleared
-      if (!phone || phone.trim() === '') {
-        updateData.phone = null;
-        updateData.phoneVerified = false;
-        updateData.phoneCountryCode = null;
-      } else {
-        // Validate phone number format
-        const phoneValidation = smsService.validatePhoneNumber(phone);
-        
-        if (!phoneValidation.valid) {
-          return res.status(400).json({ 
-            error: phoneValidation.error || "Invalid phone number format" 
-          });
-        }
-        
-        // Normalize phone number
-        const normalizedPhone = smsService.normalizePhoneNumber(phone);
-        
-        // Check if phone changed
-        if (normalizedPhone !== currentUser.phone) {
-          // Check if phone is already used by another verified user
-          const phoneExists = await prisma.user.findFirst({
-            where: {
-              phone: normalizedPhone,
-              id: { not: userId },
-              phoneVerified: true,
-            },
-          });
-
-          if (phoneExists) {
-            return res.status(400).json({ 
-              error: "This phone number is already registered to another account" 
-            });
-          }
-
-          updateData.phone = normalizedPhone;
-          updateData.phoneVerified = false; // Reset verification when phone changes
-          updateData.phoneCountryCode = phoneValidation.countryCode || null;
-          
-          // Clear any existing OTP data
-          updateData.phoneVerificationToken = null;
-          updateData.phoneVerificationExpiry = null;
-          updateData.phoneVerificationAttempts = 0;
-        }
-      }
-    }
-
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        profilePhoto: true,
-        lastNameChange: true,
-        emailVerified: true,
-        phone: true,
-        phoneVerified: true,
-        phoneCountryCode: true,
-      },
-    });
-
-    res.json({
-      message: "Profile updated successfully",
-      user: updatedUser,
-    });
-  } catch (err) {
-    console.error("UPDATE USER ERROR:", err);
-    res.status(500).json({ error: "Failed to update profile" });
-  }
-}
-
 /**
  * Upload profile photo to Cloudinary
  * POST /api/users/upload-photo
