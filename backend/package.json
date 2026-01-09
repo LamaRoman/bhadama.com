@@ -14,7 +14,14 @@
     "prisma:studio": "prisma studio",
     "seed:tiers": "node prisma/seeds/tierSeed.mjs"
   },
-  
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "build": "prisma generate",
+    "start": "node src/app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "seed:tiers": "node prisma/seeds/tierSeed.mjs"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
