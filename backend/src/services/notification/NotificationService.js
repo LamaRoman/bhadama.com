@@ -1,7 +1,7 @@
 // backend/src/services/notification/NotificationService.js
 // Core notification orchestrator
 
-import prisma from '../../config/prisma.js';  // Adjust to your prisma location
+import {prisma} from '../../config/prisma.js';  
 import InAppChannel from './channels/InAppChannel.js';
 import EmailChannel from './channels/EmailChannel.js';
 import SMSChannel from './channels/SMSChannel.js';

@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "./../contexts/AuthContext";
-
+import NotificationBell from "./NotificationBell";
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -79,6 +79,7 @@ export default function Navbar() {
                   List Space
                 </Link>
               )}
+    <NotificationBell/>
 
               {/* User Menu */}
               <button

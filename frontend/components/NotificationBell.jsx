@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, X, Loader2 } from "lucide-react";
-import { api } from "@/utils/api";
+import { Bell, CheckCheck, Loader2 } from "lucide-react";
+import { api } from "../utils/api";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import { useNotifications } from "@/contexts/NotificationContext";
 
 // Notification type icons and colors
 const NOTIFICATION_STYLES = {
@@ -121,7 +120,6 @@ export default function NotificationBell() {
   const getNotificationUrl = (notification) => {
     if (notification.actionUrl) return notification.actionUrl;
     
-    // Generate URL based on type and data
     const data = notification.data || {};
     switch (notification.type) {
       case "BOOKING_CREATED":
@@ -151,47 +149,55 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Bell Button */}
+      {/* Minimal Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-full transition-colors"
+        className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         aria-label="Notifications"
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="w-5 h-5" strokeWidth={1.5} />
+        
+        {/* Unread indicator - small dot */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full" />
         )}
       </button>
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-2xl shadow-xl border border-stone-200 overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-            <h3 className="font-semibold text-stone-900">Notifications</h3>
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-gray-900 text-sm">Notifications</h3>
+              {unreadCount > 0 && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                className="text-xs text-gray-500 hover:text-gray-700 font-medium"
               >
-                <CheckCheck className="w-4 h-4" />
                 Mark all read
               </button>
             )}
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
             ) : notifications.length === 0 ? (
-              <div className="py-8 text-center text-stone-500">
-                <Bell className="w-10 h-10 mx-auto mb-2 text-stone-300" />
-                <p>No notifications yet</p>
+              <div className="py-10 text-center">
+                <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="text-sm text-gray-500">No notifications yet</p>
               </div>
             ) : (
               notifications.map((notification) => {
@@ -200,8 +206,8 @@ export default function NotificationBell() {
                 
                 const Content = (
                   <div
-                    className={`px-4 py-3 hover:bg-stone-50 transition-colors cursor-pointer ${
-                      !notification.read ? "bg-emerald-50/50" : ""
+                    className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-50 last:border-0 ${
+                      !notification.read ? "bg-emerald-50/30" : ""
                     }`}
                     onClick={() => {
                       if (!notification.read) markAsRead(notification.id);
@@ -211,26 +217,26 @@ export default function NotificationBell() {
                     <div className="flex gap-3">
                       {/* Icon */}
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${style.color}`}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${style.color}`}
                       >
-                        <span className="text-lg">{style.icon}</span>
+                        <span className="text-sm">{style.icon}</span>
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-sm ${
+                          className={`text-sm leading-snug ${
                             notification.read
-                              ? "text-stone-600"
-                              : "text-stone-900 font-medium"
+                              ? "text-gray-600"
+                              : "text-gray-900 font-medium"
                           }`}
                         >
                           {notification.title}
                         </p>
-                        <p className="text-sm text-stone-500 truncate">
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
                           {notification.message}
                         </p>
-                        <p className="text-xs text-stone-400 mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           {formatDistanceToNow(new Date(notification.createdAt), {
                             addSuffix: true,
                           })}
@@ -239,7 +245,7 @@ export default function NotificationBell() {
 
                       {/* Unread indicator */}
                       {!notification.read && (
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0 mt-2" />
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0 mt-2" />
                       )}
                     </div>
                   </div>
@@ -262,10 +268,10 @@ export default function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-stone-100">
+            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/50">
               <Link
                 href="/notifications"
-                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                className="text-xs text-gray-600 hover:text-gray-900 font-medium"
                 onClick={() => setIsOpen(false)}
               >
                 View all notifications →

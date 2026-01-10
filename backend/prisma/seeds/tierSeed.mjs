@@ -131,7 +131,7 @@ const DEFAULT_PRICING_USD = {
 
 // Payment Gateways
 const PAYMENT_GATEWAYS = [
-  { gateway: "ESEWA", displayName: "eSewa", merchantId: "EPAYTEST", secretKey: "8gBm/:&EnhH.10Le", baseUrl: "https://uat.esewa.com.np", isActive: true, isTestMode: true, currencies: ["NPR"], countries: ["NP"] },
+  { gateway: "ESEWA", displayName: "eSewa", merchantId: "EPAYTEST", secretKey: "8gBm/:&EnhH.1/q", baseUrl: "https://uat.esewa.com.np", isActive: true, isTestMode: true, currencies: ["NPR"], countries: ["NP"] },
   { gateway: "KHALTI", displayName: "Khalti", publicKey: "test_public_key_xxx", secretKey: "test_secret_key_xxx", baseUrl: "https://a.khalti.com/api/v2", isActive: true, isTestMode: true, currencies: ["NPR"], countries: ["NP"] },
   { gateway: "DODO", displayName: "Card Payment (Dodo)", publicKey: "test_public_key_xxx", secretKey: "test_secret_key_xxx", baseUrl: "https://api.dodopayments.com", isActive: true, isTestMode: true, currencies: ["USD"], countries: ["*"] },
 ];

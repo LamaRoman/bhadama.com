@@ -5,9 +5,30 @@
 // ==========================================
 
 import { PrismaClient } from "@prisma/client";
+import crypto from "crypto";
 import { PAYMENT_GATEWAYS, PAYMENT_STATUS, calculateEndDate } from "../config/tierConfig.js";
 
 const prisma = new PrismaClient();
+
+// ==========================================
+// ESEWA v2 HELPER FUNCTIONS
+// ==========================================
+
+/**
+ * Generate HMAC SHA256 signature for eSewa v2
+ */
+function generateEsewaSignature(message, secretKey) {
+  const hmac = crypto.createHmac('sha256', secretKey);
+  hmac.update(message);
+  return hmac.digest('base64');
+}
+
+/**
+ * Generate unique transaction UUID
+ */
+function generateTransactionUuid() {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
 
 // ==========================================
 // INITIATE PAYMENT
@@ -81,7 +102,7 @@ export const initiatePayment = async (req, res) => {
 };
 
 // ==========================================
-// ESEWA PAYMENT (Nepal)
+// ESEWA PAYMENT v2 (Nepal)
 // ==========================================
 
 async function initiateEsewaPayment(payment) {
@@ -94,32 +115,62 @@ async function initiateEsewaPayment(payment) {
     throw new Error("eSewa is not configured");
   }
 
-  // eSewa payment parameters
+  const merchantId = config.merchantId; // "EPAYTEST" for test
+  const secretKey = config.secretKey;   
+
+  // Generate unique transaction ID
+  const transactionUuid = generateTransactionUuid();
+  
+  // eSewa v2 parameters
+  const amount = payment.amount;
+  const taxAmount = 0;
+  const serviceCharge = 0;
+  const deliveryCharge = 0;
+  const totalAmount = amount + taxAmount + serviceCharge + deliveryCharge;
+
+  // Create signature message (must be in this exact format)
+  const signatureMessage = `total_amount=${totalAmount},transaction_uuid=${transactionUuid},product_code=${merchantId}`;
+  const signature = generateEsewaSignature(signatureMessage, secretKey);
+
+  // eSewa v2 form parameters
   const params = {
-    amt: payment.amount,
-    psc: 0, // Service charge
-    pdc: 0, // Delivery charge
-    txAmt: 0, // Tax amount
-    tAmt: payment.amount, // Total amount
-    pid: `PAY-${payment.id}-${Date.now()}`, // Unique product ID
-    scd: config.merchantId, // Merchant code
-    su: `${process.env.FRONTEND_URL}/payment/success?gateway=esewa`, // Success URL
-    fu: `${process.env.FRONTEND_URL}/payment/failed?gateway=esewa`, // Failure URL
+    amount: amount.toString(),
+    tax_amount: taxAmount.toString(),
+    total_amount: totalAmount.toString(),
+    transaction_uuid: transactionUuid,
+    product_code: merchantId,
+    product_service_charge: serviceCharge.toString(),
+    product_delivery_charge: deliveryCharge.toString(),
+    success_url: `${process.env.BACKEND_URL}/api/tiers/payments/callback/esewa/success`,
+    failure_url: `${process.env.FRONTEND_URL}/payment/failed?gateway=esewa`,
+    signed_field_names: "total_amount,transaction_uuid,product_code",
+    signature: signature,
   };
 
   // Store transaction reference
   await prisma.payment.update({
     where: { id: payment.id },
     data: {
-      gatewayTransactionId: params.pid,
-      gatewayResponse: { initiated: true, params },
+      gatewayTransactionId: transactionUuid,
+      gatewayResponse: { 
+        initiated: true, 
+        params,
+        transactionUuid,
+      },
     },
   });
 
-  // eSewa form URL (test or production)
+  // eSewa v2 form URL
   const baseUrl = config.isTestMode
-    ? "https://uat.esewa.com.np/epay/main"
-    : "https://esewa.com.np/epay/main";
+    ? "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+    : "https://epay.esewa.com.np/api/epay/main/v2/form";
+
+  console.log('✅ eSewa Payment Initiated:', {
+    transactionUuid,
+    amount: totalAmount,
+    merchantId,
+    url: baseUrl,
+  });
 
   return {
     type: "form_redirect",
@@ -129,6 +180,116 @@ async function initiateEsewaPayment(payment) {
     instructions: "You will be redirected to eSewa to complete payment",
   };
 }
+
+// ==========================================
+// ESEWA CALLBACK (v2)
+// ==========================================
+
+export const esewaCallback = async (req, res) => {
+  try {
+    // eSewa v2 sends data as base64 encoded query param
+    const { data } = req.query;
+
+    console.log('📥 eSewa Callback received:', { data: data ? 'present' : 'missing' });
+
+    if (!data) {
+      console.error('❌ No data received from eSewa');
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=no_data`);
+    }
+
+    // Decode the base64 response from eSewa
+    let decodedData;
+    try {
+      decodedData = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
+      console.log('📦 eSewa Decoded Data:', decodedData);
+    } catch (decodeError) {
+      console.error('❌ Failed to decode eSewa data:', decodeError);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=invalid_data`);
+    }
+
+    const {
+      transaction_code,
+      status,
+      total_amount,
+      transaction_uuid,
+      product_code,
+      signed_field_names,
+      signature,
+    } = decodedData;
+
+    // Get config for verification
+    const config = await prisma.paymentGatewayConfig.findUnique({
+      where: { gateway: "ESEWA" },
+    });
+
+    if (!config) {
+      console.error('❌ eSewa config not found');
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=config_missing`);
+    }
+
+    // Verify signature
+    const signatureMessage = `transaction_code=${transaction_code},status=${status},total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code},signed_field_names=${signed_field_names}`;
+    const expectedSignature = generateEsewaSignature(signatureMessage, config.secretKey);
+
+    if (signature !== expectedSignature) {
+      console.error('❌ eSewa signature mismatch!');
+      console.error('Expected:', expectedSignature);
+      console.error('Received:', signature);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=invalid_signature`);
+    }
+
+    console.log('✅ eSewa signature verified');
+
+    // Find payment by transaction UUID
+    const payment = await prisma.payment.findFirst({
+      where: { gatewayTransactionId: transaction_uuid },
+      include: { 
+        subscription: { include: { tier: true } },
+        host: true,
+      },
+    });
+
+    if (!payment) {
+      console.error('❌ Payment not found for transaction:', transaction_uuid);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=payment_not_found`);
+    }
+
+    if (status === "COMPLETE") {
+      console.log('✅ eSewa payment successful, completing...');
+      
+      // Complete the payment
+      await completePayment(payment.id, transaction_code, {
+        transactionCode: transaction_code,
+        transactionUuid: transaction_uuid,
+        totalAmount: total_amount,
+        status: status,
+        verifiedAt: new Date().toISOString(),
+      });
+
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/success?payment=${payment.id}`);
+    } else {
+      console.log('❌ eSewa payment not complete, status:', status);
+      
+      // Update payment as failed
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "FAILED",
+          gatewayResponse: {
+            status: status,
+            transactionCode: transaction_code,
+            failedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=payment_${status.toLowerCase()}`);
+    }
+  } catch (error) {
+    console.error("❌ eSewa callback error:", error);
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=callback_error`);
+  }
+};
 
 // ==========================================
 // KHALTI PAYMENT (Nepal)
@@ -236,34 +397,6 @@ async function initiateDodoPayment(payment) {
 // ==========================================
 // PAYMENT CALLBACKS / WEBHOOKS
 // ==========================================
-
-// eSewa Success Callback
-export const esewaCallback = async (req, res) => {
-  try {
-    const { oid, amt, refId } = req.query;
-
-    // Find payment by oid (our transaction ID)
-    const payment = await prisma.payment.findFirst({
-      where: { gatewayTransactionId: oid },
-      include: { subscription: { include: { tier: true } } },
-    });
-
-    if (!payment) {
-      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=payment_not_found`);
-    }
-
-    // TODO: Verify with eSewa API
-    // const verified = await verifyEsewaPayment(oid, amt, refId);
-
-    // For now, assume success
-    await completePayment(payment.id, refId, { oid, amt, refId });
-
-    res.redirect(`${process.env.FRONTEND_URL}/payment/success?payment=${payment.id}`);
-  } catch (error) {
-    console.error("eSewa callback error:", error);
-    res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=callback_error`);
-  }
-};
 
 // Khalti Callback
 export const khaltiCallback = async (req, res) => {
@@ -531,6 +664,7 @@ export const getAvailableGateways = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch gateways" });
   }
 };
+
 export default {
   initiatePayment,
   esewaCallback,

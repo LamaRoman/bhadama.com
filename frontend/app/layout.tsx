@@ -34,11 +34,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en"> 
-    <header><NotificationBell/></header>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
+
           <Navbar/>
           <LayoutWrapper>
           {children}

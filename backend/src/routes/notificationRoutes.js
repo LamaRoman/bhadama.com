@@ -2,9 +2,9 @@
 // API routes for notifications
 
 import express from 'express';
-import prisma from '../config/prisma.js';  // Adjust to your prisma location
+import {prisma} from '../config/prisma.js';  // Adjust to your prisma location
 import NotificationService from '../services/notification/index.js';
-import { authenticate } from '../middleware/auth.js';  // Adjust to your auth middleware
+import { authenticate } from '../middleware/authMiddleware.js';  // Adjust to your auth middleware
 
 const router = express.Router();
 
