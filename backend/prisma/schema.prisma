@@ -195,6 +195,7 @@ model User {
   receivedMessages             Message[]           @relation("ReceivedMessages")
   sentMessages                 Message[]           @relation("SentMessages")
   notifications                Notification[]
+  notificationPreferences      NotificationPreference[]
   adminRefunds                 Refund[]            @relation("AdminRefunds")
   reviews                      Review[]
   reviewReports                ReviewReport[]      @relation("UserReviewReports")
@@ -346,6 +347,32 @@ model PromotionRequest {
   @@index([listingId])
   @@index([hostId])
   @@index([status])
+}
+
+enum NotificationCategory {
+  TRANSACTIONAL   // Booking confirmations, receipts
+  ALERT           // Reminders, warnings
+  MARKETING       // Promotions, newsletters
+  SYSTEM          // Account, security
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+enum DeliveryStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+  REJECTED
 }
 
 model VerificationLog {
@@ -572,20 +599,132 @@ model SavedListing {
 }
 
 model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id           Int                    @id @default(autoincrement())
+  userId       Int
+  type         NotificationType
+  category     NotificationCategory   @default(TRANSACTIONAL)
+  title        String
+  message      String
+  data         Json?
+  
+  // Channels this notification was sent to
+  channels     NotificationChannel[]  @default([IN_APP])
+  
+  // Status
+  read         Boolean                @default(false)
+  readAt       DateTime?
+  archived     Boolean                @default(false)
+  
+  // Scheduling (for future scheduled notifications)
+  scheduledFor DateTime?
+  
+  // Link to related entity for easy navigation
+  actionUrl    String?
+  
+  // Timestamps
+  createdAt    DateTime               @default(now())
+  
+  // Relations
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries   NotificationDelivery[]
+  
   @@index([userId])
-  @@index([read])
+  @@index([userId, read])
+  @@index([type])
+  @@index([createdAt])
+  @@index([scheduledFor])
+  @@map("notifications")
+}
+model NotificationDelivery {
+  id                Int                 @id @default(autoincrement())
+  notificationId    Int
+  channel           NotificationChannel
+  status            DeliveryStatus      @default(PENDING)
+  
+  // Provider info
+  provider          String?             // 'resend', 'plivo', 'sparrow', 'fcm'
+  providerMessageId String?             // External message ID
+  
+  // Delivery details
+  recipient         String?             // Email or phone used
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  errorMessage      String?
+  retryCount        Int                 @default(0)
+  
+  // Cost tracking
+  cost              Decimal?            @db.Decimal(10, 6)
+  currency          String?             @default("USD")
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  notification      Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  @@unique([notificationId, channel])
+  @@index([status])
+  @@index([channel])
+  @@index([createdAt])
+  @@map("notification_deliveries")
 }
 
+model NotificationPreference {
+  id          Int                   @id @default(autoincrement())
+  userId      Int
+  
+  // Which notification type this preference is for
+  type        NotificationType
+  
+  // Which channels to use for this type
+  channels    NotificationChannel[] @default([IN_APP])
+  
+  // Master enable/disable
+  enabled     Boolean               @default(true)
+  
+  // Quiet hours (don't send during these times)
+  quietStart  String?               // "22:00"
+  quietEnd    String?               // "08:00"
+  timezone    String?               @default("Asia/Kathmandu")
+  
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+model NotificationTemplate {
+  id          Int                   @id @default(autoincrement())
+  
+  // Identification
+  slug        String                // 'booking_confirmed', 'payment_received'
+  type        NotificationType
+  channel     NotificationChannel
+  language    String                @default("en")
+  
+  // Content
+  subject     String?               // For email
+  title       String
+  body        String                @db.Text
+  
+  // Metadata
+  description String?
+  variables   String[]              @default([])
+  isActive    Boolean               @default(true)
+  
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  
+  @@unique([slug, channel, language])
+  @@index([type])
+  @@index([channel])
+  @@index([isActive])
+  @@map("notification_templates")
+}
 model Message {
   id         Int      @id @default(autoincrement())
   senderId   Int
@@ -851,16 +990,52 @@ enum ReviewStatus {
 }
 
 enum NotificationType {
+  // Booking related
   BOOKING_CREATED
+  BOOKING_CONFIRMED
   BOOKING_UPDATED
   BOOKING_CANCELLED
+  BOOKING_REMINDER
+  BOOKING_COMPLETED
+  
+  // Payment related
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  
+  // Review related
   NEW_REVIEW
+  REVIEW_RESPONSE
+  
+  // Message related
   MESSAGE
-  SYSTEM
+  
+  // Host related
+  NEW_BOOKING_REQUEST
+  LISTING_APPROVED
+  LISTING_REJECTED
+  
+  // Blog related
   BLOG_APPROVED
   BLOG_REJECTED
   BLOG_COMMENT
   BLOG_LIKE
+  
+  // Account related
+  WELCOME
+  EMAIL_VERIFIED
+  PHONE_VERIFIED
+  PASSWORD_CHANGED
+  PASSWORD_RESET
+  ACCOUNT_SUSPENDED
+  
+  // System
+  SYSTEM
+  MAINTENANCE
+  PROMOTION
 }
 
 enum BlogStatus {

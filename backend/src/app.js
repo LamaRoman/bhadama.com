@@ -3,7 +3,7 @@ import express from "express";
 import 'dotenv/config';
 import cors from "cors";
 import passport from "./config/passport.js";
-
+import notificationRoutes from './routes/notificationRoutes.js'
 // Import routes
 import verificationRoutes from './routes/verificationRoutes.js';
 import authRoutes from "./routes/authRoutes.js";
@@ -97,7 +97,7 @@ app.use("/api/blogs", blogRoutes);
 app.use("/api/user/blogs", userBlogRoutes);
 app.use("/api/host/blogs", hostBlogRoutes);
 app.use("/api/admin/blogs", adminBlogRoutes);
-
+app.use("/api/notifications",notificationRoutes)
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 

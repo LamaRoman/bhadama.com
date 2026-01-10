@@ -235,7 +235,7 @@ export const googleCallback = (req, res) => {
       id: user.id,
       email: user.email,
       emailVerified: user.emailVerified,
-      googleId: user.googleId
+      googleId: user.googleId,
     });
 
     const token = generateToken(user);

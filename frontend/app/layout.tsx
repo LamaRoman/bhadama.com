@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { AuthProvider } from "@/contexts/AuthContext.js"
 import LayoutWrapper from "@/components/LayoutWrapper";
+import NotificationBell from "@/components/NotificationBell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en"> 
+    <header><NotificationBell/></header>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

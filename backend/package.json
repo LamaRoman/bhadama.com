@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "seed:tiers": "node prisma/seeds/tierSeed.mjs"
+    "seed:tiers": "node prisma/seeds/tierSeed.mjs",
+    "seed:notifications":"node prisma/seeds/notificationTemplateSeed.mjs"
   },
   "keywords": [],
   "author": "",
