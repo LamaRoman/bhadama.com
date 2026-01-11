@@ -237,6 +237,11 @@ model User {
   resetPasswordToken String?  @unique
   resetPasswordExpires  DateTime?
 
+
+supportTickets         SupportTicket[]
+  supportMessages        SupportMessage[]
+  assignedTickets        SupportTicket[]   @relation("AssignedTickets")
+
   @@index([email])
   @@index([role])
 }
@@ -1064,3 +1069,118 @@ enum CommentStatus {
   FLAGGED
   DELETED
 }
+
+// ============================================
+// SUPPORT TICKET SYSTEM
+// Add this to the end of your schema.prisma
+// ============================================
+
+// Add these relations to your User model:
+// supportTickets         SupportTicket[]
+// supportMessages        SupportMessage[]
+// assignedTickets        SupportTicket[]   @relation("AssignedTickets")
+
+model SupportTicket {
+  id            Int                 @id @default(autoincrement())
+  ticketNumber  String              @unique  // TKT-2024-00001
+  
+  // Who submitted
+  userId        Int
+  userType      Role                // USER, HOST
+  
+  // Ticket details
+  category      TicketCategory
+  subject       String
+  priority      TicketPriority      @default(MEDIUM)
+  status        TicketStatus        @default(OPEN)
+  
+  // Assignment (optional - for when admin assigns to team member)
+  assignedToId  Int?
+  
+  // Timestamps
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  closedAt      DateTime?
+  firstResponseAt DateTime?
+  
+  // Related entities (optional - link to booking, listing, etc.)
+  relatedType   String?             // 'BOOKING', 'LISTING', 'PAYMENT'
+  relatedId     Int?
+  
+  // Relations
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo    User?               @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  messages      SupportMessage[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([createdAt])
+  @@index([ticketNumber])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id            Int                 @id @default(autoincrement())
+  ticketId      Int
+  senderId      Int
+  senderType    MessageSenderType   // USER, ADMIN
+  
+  // Content
+  message       String              @db.Text
+  attachments   String[]            @default([])
+  
+  // For admin internal notes (not visible to user)
+  isInternal    Boolean             @default(false)
+  
+  // Timestamps
+  createdAt     DateTime            @default(now())
+  
+  // Relations
+  ticket        SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender        User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([ticketId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("support_messages")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum TicketCategory {
+  BOOKING         // Issues with bookings
+  PAYMENT         // Payment problems, refunds
+  LISTING         // Listing issues (for hosts)
+  ACCOUNT         // Account, profile issues
+  TECHNICAL       // App bugs, technical problems
+  HOST_ISSUE      // Guest reporting host issues
+  GUEST_ISSUE     // Host reporting guest issues
+  FEEDBACK        // General feedback
+  OTHER           // Anything else
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN            // New ticket
+  IN_PROGRESS     // Being worked on
+  WAITING_USER    // Waiting for user response
+  WAITING_ADMIN   // Waiting for admin response
+  RESOLVED        // Issue resolved
+  CLOSED          // Ticket closed
+}
+
+enum MessageSenderType {
+  USER
+  ADMIN
+}
+
