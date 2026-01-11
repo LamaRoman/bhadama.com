@@ -119,6 +119,587 @@ class EmailService {
     }
   }
 
+  // ============================================
+  // BOOKING EMAILS
+  // ============================================
+
+  /**
+   * Send booking confirmation email to guest
+   */
+  async sendBookingConfirmationToGuest(booking) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: [booking.user.email],
+        subject: `Booking Confirmed! 🎉 - ${booking.listing.title}`,
+        html: this.getBookingConfirmationGuestTemplate(booking)
+      });
+
+      if (error) {
+        console.error('❌ Booking confirmation (guest) email error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ Booking confirmation sent to guest: ${data.id}`);
+      return { success: true, messageId: data.id };
+    } catch (error) {
+      console.error('❌ Booking confirmation (guest) service error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send new booking notification email to host
+   */
+  async sendBookingNotificationToHost(booking) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: [booking.listing.host.email],
+        subject: `New Booking! 📅 - ${booking.listing.title}`,
+        html: this.getBookingNotificationHostTemplate(booking)
+      });
+
+      if (error) {
+        console.error('❌ Booking notification (host) email error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ Booking notification sent to host: ${data.id}`);
+      return { success: true, messageId: data.id };
+    } catch (error) {
+      console.error('❌ Booking notification (host) service error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send both booking emails (guest confirmation + host notification)
+   */
+  async sendBookingEmails(booking) {
+    const results = await Promise.allSettled([
+      this.sendBookingConfirmationToGuest(booking),
+      this.sendBookingNotificationToHost(booking),
+    ]);
+
+    const guestResult = results[0];
+    const hostResult = results[1];
+
+    console.log('📧 Booking emails sent:', {
+      guest: guestResult.status === 'fulfilled' ? guestResult.value : guestResult.reason,
+      host: hostResult.status === 'fulfilled' ? hostResult.value : hostResult.reason,
+    });
+
+    return {
+      guest: guestResult.status === 'fulfilled' ? guestResult.value : { success: false, error: guestResult.reason },
+      host: hostResult.status === 'fulfilled' ? hostResult.value : { success: false, error: hostResult.reason },
+    };
+  }
+
+  /**
+   * Send booking cancellation email
+   */
+  async sendBookingCancellation(booking, cancelledBy = 'guest') {
+    try {
+      // Send to guest
+      await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: [booking.user.email],
+        subject: `Booking Cancelled - ${booking.listing.title}`,
+        html: this.getBookingCancellationTemplate(booking, cancelledBy, 'guest')
+      });
+
+      // Send to host
+      await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: [booking.listing.host.email],
+        subject: `Booking Cancelled - ${booking.listing.title}`,
+        html: this.getBookingCancellationTemplate(booking, cancelledBy, 'host')
+      });
+
+      console.log(`✅ Booking cancellation emails sent for booking ${booking.id}`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Booking cancellation email error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ============================================
+  // BOOKING EMAIL TEMPLATES
+  // ============================================
+
+  /**
+   * Booking Confirmation Template (for Guest)
+   */
+  getBookingConfirmationGuestTemplate(booking) {
+    const bookingDate = new Date(booking.bookingDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const formatTime = (time) => {
+      const [h, m] = time.split(':');
+      const hour = parseInt(h);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    };
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Confirmed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                Booking Confirmed!
+              </h1>
+              <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 16px;">
+                Your reservation is all set
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 24px 0; font-size: 20px; font-weight: 600;">
+                Hi ${booking.user.name}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Great news! Your booking has been confirmed. Here are your reservation details:
+              </p>
+              
+              <!-- Booking Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <!-- Venue Name -->
+                    <h3 style="color: #1f2937; margin: 0 0 16px 0; font-size: 18px; font-weight: 700;">
+                      📍 ${booking.listing.title}
+                    </h3>
+                    
+                    <!-- Details Grid -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">📅 Date</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${bookingDate}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">⏰ Time</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">👥 Guests</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${booking.guests} ${booking.guests === 1 ? 'guest' : 'guests'}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #6b7280; font-size: 14px;">🎫 Booking ID</span>
+                        </td>
+                        <td style="padding: 8px 0; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600; font-family: monospace;">#${booking.id}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Payment Summary -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h4 style="color: #065f46; margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">💳 PAYMENT SUMMARY</h4>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Base Price</td>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px; text-align: right;">Rs. ${Number(booking.basePrice).toLocaleString()}</td>
+                      </tr>
+                      ${Number(booking.extraGuestPrice) > 0 ? `
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Extra Guest Fee</td>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px; text-align: right;">Rs. ${Number(booking.extraGuestPrice).toLocaleString()}</td>
+                      </tr>
+                      ` : ''}
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Service Fee</td>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px; text-align: right;">Rs. ${Number(booking.serviceFee).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Tax</td>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px; text-align: right;">Rs. ${Number(booking.tax).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0 0 0; color: #065f46; font-size: 18px; font-weight: 700; border-top: 1px solid #a7f3d0;">Total Paid</td>
+                        <td style="padding: 12px 0 0 0; color: #065f46; font-size: 18px; font-weight: 700; text-align: right; border-top: 1px solid #a7f3d0;">Rs. ${Number(booking.totalPrice).toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Host Info -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h4 style="color: #1f2937; margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">🏠 YOUR HOST</h4>
+                    <p style="color: #4b5563; margin: 0; font-size: 14px;">
+                      <strong>${booking.listing.host.name}</strong><br>
+                      ${booking.listing.host.email}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${process.env.FRONTEND_URL}/bookings/${booking.id}" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      View Booking Details
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                Need to make changes? You can manage your booking from your dashboard or contact the host directly.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                Thank you for using ${this.fromName}!
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 16px 0 0 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  /**
+   * Booking Notification Template (for Host)
+   */
+  getBookingNotificationHostTemplate(booking) {
+    const bookingDate = new Date(booking.bookingDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const formatTime = (time) => {
+      const [h, m] = time.split(':');
+      const hour = parseInt(h);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    };
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Booking</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">📅</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                New Booking!
+              </h1>
+              <p style="color: #bfdbfe; margin: 8px 0 0 0; font-size: 16px;">
+                You have a new reservation
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 24px 0; font-size: 20px; font-weight: 600;">
+                Hi ${booking.listing.host.name}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Great news! You have a new confirmed booking for <strong>${booking.listing.title}</strong>.
+              </p>
+              
+              <!-- Guest Info -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h4 style="color: #1e40af; margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">👤 GUEST INFORMATION</h4>
+                    <p style="color: #1e3a8a; margin: 0; font-size: 14px;">
+                      <strong>${booking.user.name}</strong><br>
+                      ${booking.user.email}<br>
+                      ${booking.user.phone || 'No phone provided'}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Booking Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <h4 style="color: #1f2937; margin: 0 0 16px 0; font-size: 14px; font-weight: 600;">📋 BOOKING DETAILS</h4>
+                    
+                    <!-- Details Grid -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">📅 Date</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${bookingDate}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">⏰ Time</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">⏱️ Duration</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${Number(booking.duration)} hours</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">👥 Guests</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${booking.guests} ${booking.guests === 1 ? 'guest' : 'guests'}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #6b7280; font-size: 14px;">🎫 Booking ID</span>
+                        </td>
+                        <td style="padding: 8px 0; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600; font-family: monospace;">#${booking.id}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Earnings Summary -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h4 style="color: #065f46; margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">💰 YOUR EARNINGS</h4>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Booking Amount</td>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px; text-align: right;">Rs. ${Number(booking.basePrice + (booking.extraGuestPrice || 0)).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; color: #047857; font-size: 14px;">Platform Fee (10%)</td>
+                        <td style="padding: 4px 0; color: #dc2626; font-size: 14px; text-align: right;">- Rs. ${Number(booking.serviceFee).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0 0 0; color: #065f46; font-size: 18px; font-weight: 700; border-top: 1px solid #a7f3d0;">You'll Receive</td>
+                        <td style="padding: 12px 0 0 0; color: #065f46; font-size: 18px; font-weight: 700; text-align: right; border-top: 1px solid #a7f3d0;">Rs. ${Number(booking.basePrice + (booking.extraGuestPrice || 0) - booking.serviceFee).toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${process.env.FRONTEND_URL}/host/bookings" style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      View All Bookings
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                Please ensure your space is ready for the guest. You can contact them directly if you need to discuss any details.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                Thank you for hosting with ${this.fromName}!
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 16px 0 0 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  /**
+   * Booking Cancellation Template
+   */
+  getBookingCancellationTemplate(booking, cancelledBy, recipientType) {
+    const bookingDate = new Date(booking.bookingDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const recipientName = recipientType === 'guest' ? booking.user.name : booking.listing.host.name;
+    const cancelMessage = cancelledBy === 'guest' 
+      ? 'The guest has cancelled this booking.'
+      : cancelledBy === 'host'
+      ? 'The host has cancelled this booking.'
+      : 'This booking has been cancelled.';
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Cancelled</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                Booking Cancelled
+              </h1>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 24px 0; font-size: 20px; font-weight: 600;">
+                Hi ${recipientName},
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                ${cancelMessage}
+              </p>
+              
+              <!-- Cancelled Booking Details -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <h3 style="color: #991b1b; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">
+                      ${booking.listing.title}
+                    </h3>
+                    <p style="color: #b91c1c; margin: 0; font-size: 14px;">
+                      📅 ${bookingDate}<br>
+                      ⏰ ${booking.startTime} - ${booking.endTime}<br>
+                      🎫 Booking #${booking.id}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                If you have any questions, please contact our support team.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  // ============================================
+  // EXISTING TEMPLATES (unchanged)
+  // ============================================
+
   /**
    * OTP Email Template
    */

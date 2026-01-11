@@ -7,7 +7,7 @@
 import * as bookingService from "../services/bookingService.js";
 import { prisma } from "../config/prisma.js";
 import crypto from "crypto";
-
+import emailService from "../services/email/emailService.js";
 // Add BigInt serialization support
 BigInt.prototype.toJSON = function() {
   return this.toString();
@@ -459,7 +459,8 @@ export const esewaPaymentSuccess = async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=payment_incomplete`);
     }
 
-    await prisma.booking.update({
+    // Update booking status
+    const updatedBooking = await prisma.booking.update({
       where: { id: booking.id },
       data: {
         status: "CONFIRMED",
@@ -467,15 +468,40 @@ export const esewaPaymentSuccess = async (req, res) => {
         paymentReferenceId: referenceId,
         paymentCompletedAt: new Date(),
       },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            host: {
+              select: { id: true, name: true, email: true, phone: true },
+            },
+          },
+        },
+      },
     });
 
     console.log("✅ Booking confirmed:", booking.id);
+
+    // Send confirmation emails to both guest and host
+    try {
+      const emailResults = await emailService.sendBookingEmails(updatedBooking);
+      console.log("📧 Booking emails sent:", emailResults);
+    } catch (emailError) {
+      // Don't fail the booking if emails fail - just log it
+      console.error("❌ Failed to send booking emails:", emailError);
+    }
+
     res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${referenceId}`);
   } catch (error) {
     console.error("❌ eSewa callback error:", error);
     res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=callback_error`);
   }
 };
+
 
 export const esewaPaymentFailure = async (req, res) => {
   try {
@@ -544,10 +570,8 @@ export const khaltiPaymentCallback = async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=booking_not_found`);
     }
 
-    // TODO: Verify payment with Khalti lookup API for production
-    // const verified = await verifyKhaltiPayment(pidx, khaltiConfig);
-
-    await prisma.booking.update({
+    // Update booking with full details for email
+    const updatedBooking = await prisma.booking.update({
       where: { id: booking.id },
       data: {
         status: "CONFIRMED",
@@ -555,9 +579,32 @@ export const khaltiPaymentCallback = async (req, res) => {
         paymentReferenceId: transaction_id || pidx,
         paymentCompletedAt: new Date(),
       },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            host: {
+              select: { id: true, name: true, email: true, phone: true },
+            },
+          },
+        },
+      },
     });
 
     console.log("✅ Khalti booking confirmed:", booking.id);
+
+    // Send confirmation emails
+    try {
+      const emailResults = await emailService.sendBookingEmails(updatedBooking);
+      console.log("📧 Booking emails sent:", emailResults);
+    } catch (emailError) {
+      console.error("❌ Failed to send booking emails:", emailError);
+    }
+
     res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${transaction_id || pidx}`);
   } catch (error) {
     console.error("❌ Khalti callback error:", error);
@@ -574,7 +621,6 @@ export const cardPaymentCallback = async (req, res) => {
     const { payment_id, status, session_id } = req.query;
     console.log("📥 Card payment callback:", { payment_id, status, session_id });
 
-    // Dodo sends payment_id in callback
     const transactionId = payment_id || session_id;
 
     if (!transactionId) {
@@ -582,7 +628,7 @@ export const cardPaymentCallback = async (req, res) => {
     }
 
     // Find booking
-    const booking = await prisma.booking.findFirst({
+    let booking = await prisma.booking.findFirst({
       where: { 
         paymentTransactionId: transactionId,
         status: "PENDING",
@@ -590,53 +636,73 @@ export const cardPaymentCallback = async (req, res) => {
     });
 
     if (!booking) {
-      // Try to find by metadata (Dodo might use different ID)
+      // Try to find by metadata
       const allPending = await prisma.booking.findMany({
         where: { status: "PENDING", paymentGateway: "CARD" },
         orderBy: { createdAt: "desc" },
         take: 10,
       });
       
-      // Find booking where paymentDetails contains this transaction
-      const foundBooking = allPending.find(b => {
+      booking = allPending.find(b => {
         const details = b.paymentDetails;
         return details?.session_id === transactionId || 
                details?.payment_id === transactionId;
       });
       
-      if (!foundBooking) {
+      if (!booking) {
         console.log("❌ Booking not found for card payment:", transactionId);
         return res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=booking_not_found`);
       }
     }
 
-    const bookingToUpdate = booking || foundBooking;
-
     // Check status
     if (status === "succeeded" || status === "completed" || status === "paid") {
-      await prisma.booking.update({
-        where: { id: bookingToUpdate.id },
+      const updatedBooking = await prisma.booking.update({
+        where: { id: booking.id },
         data: {
           status: "CONFIRMED",
           paymentStatus: "COMPLETED",
           paymentReferenceId: transactionId,
           paymentCompletedAt: new Date(),
         },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, phone: true },
+          },
+          listing: {
+            select: {
+              id: true,
+              title: true,
+              host: {
+                select: { id: true, name: true, email: true, phone: true },
+              },
+            },
+          },
+        },
       });
 
-      console.log("✅ Card payment booking confirmed:", bookingToUpdate.id);
-      res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${bookingToUpdate.id}&refId=${transactionId}`);
+      console.log("✅ Card payment booking confirmed:", booking.id);
+
+      // Send confirmation emails
+      try {
+        const emailResults = await emailService.sendBookingEmails(updatedBooking);
+        console.log("📧 Booking emails sent:", emailResults);
+      } catch (emailError) {
+        console.error("❌ Failed to send booking emails:", emailError);
+      }
+
+      res.redirect(`${process.env.FRONTEND_URL}/booking/payment-success?bookingId=${booking.id}&refId=${transactionId}`);
     } else {
       await prisma.booking.update({
-        where: { id: bookingToUpdate.id },
+        where: { id: booking.id },
         data: {
           status: "FAILED",
           paymentStatus: "FAILED",
         },
       });
 
-      console.log("💔 Card payment failed:", bookingToUpdate.id);
-      res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=payment_failed&bookingId=${bookingToUpdate.id}`);
+      console.log("💔 Card payment failed:", booking.id);
+      res.redirect(`${process.env.FRONTEND_URL}/booking/payment-failed?error=payment_failed&bookingId=${booking.id}`);
     }
   } catch (error) {
     console.error("❌ Card payment callback error:", error);
@@ -669,6 +735,18 @@ export const cardPaymentWebhook = async (req, res) => {
             paymentCompletedAt: new Date(),
           },
         });
+        // After: await prisma.booking.update(...)
+console.log("✅ Booking confirmed:", booking.id);
+console.log("📧 About to send emails...");
+console.log("📧 Updated booking data:", JSON.stringify(updatedBooking, null, 2));
+
+// Send confirmation emails
+try {
+  const emailResults = await emailService.sendBookingEmails(updatedBooking);
+  console.log("📧 Email results:", emailResults);
+} catch (emailError) {
+  console.error("❌ Email error:", emailError);
+}
         console.log("✅ Webhook: Booking confirmed:", booking.id);
       }
     } else if (event === "payment.failed") {
