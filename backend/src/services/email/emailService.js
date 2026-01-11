@@ -1068,7 +1068,420 @@ class EmailService {
 </html>
     `;
   }
+
+
+
+// ============================================
+// SUPPORT TICKET EMAIL METHODS
+// Add these methods to your emailService.js class
+// ============================================
+
+  /**
+   * Send ticket confirmation email to user
+   */
+  async sendTicketConfirmation(ticket) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} Support <${this.fromEmail}>`,
+        to: [ticket.user.email],
+        subject: `[${ticket.ticketNumber}] We received your support request`,
+        html: this.getTicketConfirmationTemplate(ticket)
+      });
+
+      if (error) {
+        console.error('❌ Ticket confirmation email error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ Ticket confirmation email sent: ${data.id}`);
+      return { success: true, messageId: data.id };
+    } catch (error) {
+      console.error('❌ Ticket confirmation email service error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send ticket reply notification to user
+   */
+  async sendTicketReply(ticket, reply) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} Support <${this.fromEmail}>`,
+        to: [ticket.user.email],
+        subject: `[${ticket.ticketNumber}] New reply to your support request`,
+        html: this.getTicketReplyTemplate(ticket, reply)
+      });
+
+      if (error) {
+        console.error('❌ Ticket reply email error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ Ticket reply email sent: ${data.id}`);
+      return { success: true, messageId: data.id };
+    } catch (error) {
+      console.error('❌ Ticket reply email service error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send ticket closed notification
+   */
+  async sendTicketClosed(ticket) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} Support <${this.fromEmail}>`,
+        to: [ticket.user.email],
+        subject: `[${ticket.ticketNumber}] Your support ticket has been closed`,
+        html: this.getTicketClosedTemplate(ticket)
+      });
+
+      if (error) {
+        console.error('❌ Ticket closed email error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ Ticket closed email sent: ${data.id}`);
+      return { success: true, messageId: data.id };
+    } catch (error) {
+      console.error('❌ Ticket closed email service error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ============================================
+  // SUPPORT TICKET EMAIL TEMPLATES
+  // ============================================
+
+  /**
+   * Ticket Confirmation Template
+   */
+  getTicketConfirmationTemplate(ticket) {
+    const categoryLabels = {
+      BOOKING: '📅 Booking Issue',
+      PAYMENT: '💳 Payment Issue',
+      LISTING: '🏠 Listing Issue',
+      ACCOUNT: '👤 Account Issue',
+      TECHNICAL: '🔧 Technical Issue',
+      HOST_ISSUE: '🏠 Host Issue',
+      GUEST_ISSUE: '👥 Guest Issue',
+      FEEDBACK: '💬 Feedback',
+      OTHER: '📋 Other'
+    };
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support Ticket Created</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">🎫</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">
+                We Received Your Request
+              </h1>
+              <p style="color: #e0e7ff; margin: 8px 0 0 0; font-size: 16px;">
+                Ticket ${ticket.ticketNumber}
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">
+                Hi ${ticket.user.name}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Thank you for contacting us. We've received your support request and our team will get back to you as soon as possible.
+              </p>
+              
+              <!-- Ticket Details -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <h4 style="color: #6366f1; margin: 0 0 16px 0; font-size: 14px; font-weight: 600; text-transform: uppercase;">
+                      Ticket Details
+                    </h4>
+                    
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">Ticket Number</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600; font-family: monospace;">${ticket.ticketNumber}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 14px;">Category</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px;">${categoryLabels[ticket.category] || ticket.category}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #6b7280; font-size: 14px;">Subject</span>
+                        </td>
+                        <td style="padding: 8px 0; text-align: right;">
+                          <span style="color: #1f2937; font-size: 14px; font-weight: 600;">${ticket.subject}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Response Time Notice -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 16px;">
+                    <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.6;">
+                      ⏰ <strong>Expected Response Time:</strong> We typically respond within 24-48 hours during business days.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${process.env.FRONTEND_URL}/support/${ticket.id}" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      View Ticket
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                You can reply to this email or visit your support page to add more details to your request.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                Need immediate help? Contact us at <a href="mailto:support@mybigyard.com" style="color: #6366f1; text-decoration: none;">support@mybigyard.com</a>
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 16px 0 0 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  /**
+   * Ticket Reply Template
+   */
+  getTicketReplyTemplate(ticket, reply) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Reply</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">
+                New Reply to Your Ticket
+              </h1>
+              <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 16px;">
+                ${ticket.ticketNumber}
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">
+                Hi ${ticket.user.name}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Our support team has replied to your ticket <strong>"${ticket.subject}"</strong>:
+              </p>
+              
+              <!-- Reply Content -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="color: #065f46; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">
+                      ${reply.sender?.name || 'Support Team'}
+                    </p>
+                    <p style="color: #047857; font-size: 15px; margin: 0; line-height: 1.6; white-space: pre-wrap;">
+${reply.message}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${process.env.FRONTEND_URL}/support/${ticket.id}" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      View Full Conversation
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                You can reply directly from your support page or respond to this email.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  /**
+   * Ticket Closed Template
+   */
+  getTicketClosedTemplate(ticket) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Closed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">
+                Ticket Closed
+              </h1>
+              <p style="color: #d1d5db; margin: 8px 0 0 0; font-size: 16px;">
+                ${ticket.ticketNumber}
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1f2937; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">
+                Hi ${ticket.user.name}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Your support ticket <strong>"${ticket.subject}"</strong> has been marked as closed.
+              </p>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                If you feel your issue wasn't resolved or you have follow-up questions, you can always create a new ticket or contact us directly.
+              </p>
+              
+              <!-- Feedback Request -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 12px; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 24px; text-align: center;">
+                    <p style="color: #1e40af; font-size: 16px; margin: 0 0 16px 0; font-weight: 600;">
+                      How was your support experience?
+                    </p>
+                    <p style="color: #3b82f6; font-size: 14px; margin: 0;">
+                      Your feedback helps us improve! 🙏
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${process.env.FRONTEND_URL}/support" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      Create New Ticket
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
+                Thank you for using ${this.fromName}!
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 16px 0 0 0; text-align: center;">
+                © ${new Date().getFullYear()} ${this.fromName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
 }
+
 
 // Singleton instance
 const emailService = new EmailService();

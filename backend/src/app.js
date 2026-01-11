@@ -24,6 +24,10 @@ import userBlogRoutes from "./routes/userBlogRoutes.js";
 import hostBlogRoutes from "./routes/hostBlogRoutes.js";
 import adminBlogRoutes from "./routes/adminBlogRoutes.js";
 
+import supportRoutes from "./routes/supportRoutes.js";
+
+// Add with other routes
+
 import {
   tierPublicRoutes,
   hostSubscriptionRoutes,
@@ -98,6 +102,9 @@ app.use("/api/user/blogs", userBlogRoutes);
 app.use("/api/host/blogs", hostBlogRoutes);
 app.use("/api/admin/blogs", adminBlogRoutes);
 app.use("/api/notifications",notificationRoutes)
+
+app.use("/api/support",supportRoutes);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
