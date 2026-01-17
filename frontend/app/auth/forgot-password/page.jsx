@@ -1,36 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api } from "../../../utils/api";
+import { useAuth, RateLimitError } from "@/contexts/AuthContext";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
+  const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+
+  const { forgotPassword } = useAuth();
+
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (rateLimitSeconds > 0) {
+      const timer = setTimeout(() => {
+        setRateLimitSeconds(rateLimitSeconds - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [rateLimitSeconds]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (rateLimitSeconds > 0) {
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const response = await api("/api/auth/forgot-password", {
-        method: "POST",
-        body: { email: email.trim().toLowerCase() },
-      });
-
-      if (response.error) {
-        setError(response.error);
-      } else {
-        setSuccess(true);
-      }
+      await forgotPassword(email.trim().toLowerCase());
+      setSuccess(true);
     } catch (err) {
-      console.error(err);
-      setError("Failed to send reset email. Please try again.");
+      console.error("Forgot password error:", err);
+
+      // Handle rate limiting
+      if (err instanceof RateLimitError || err.code === "RATE_LIMIT_EXCEEDED") {
+        const retryAfter = err.retryAfter || 3600; // Default 1 hour for password reset
+        setRateLimitSeconds(retryAfter);
+        setError(`Too many attempts. Please wait ${formatTime(retryAfter)} before trying again.`);
+      } else if (err.userMessage) {
+        setError(err.userMessage);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError("Failed to send reset email. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -49,6 +75,9 @@ export default function ForgotPasswordPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
             <p className="text-gray-600 mb-6">
               If an account exists for <strong>{email}</strong>, you will receive a password reset link shortly.
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              The link will expire in 1 hour. Check your spam folder if you don't see it.
             </p>
             <Link
               href="/auth/login"
@@ -78,6 +107,27 @@ export default function ForgotPasswordPage() {
           </div>
         )}
 
+        {/* Rate limit countdown warning */}
+        {rateLimitSeconds > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Rate limit reached
+                </p>
+                <p className="text-sm text-amber-700">
+                  Try again in <span className="font-mono font-bold">{formatTime(rateLimitSeconds)}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white border border-gray-200 rounded-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -91,14 +141,15 @@ export default function ForgotPasswordPage() {
                 placeholder="your.email@example.com"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
                 required
+                disabled={rateLimitSeconds > 0}
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || rateLimitSeconds > 0}
               className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 ${
-                loading
+                loading || rateLimitSeconds > 0
                   ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl"
               }`}
@@ -111,6 +162,8 @@ export default function ForgotPasswordPage() {
                   </svg>
                   Sending...
                 </span>
+              ) : rateLimitSeconds > 0 ? (
+                `Wait ${formatTime(rateLimitSeconds)}`
               ) : (
                 "Send Reset Link"
               )}
@@ -126,6 +179,11 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         </div>
+
+        {/* Security note */}
+        <p className="text-center text-xs text-gray-500 mt-6">
+          For security, password reset requests are limited to 3 per hour.
+        </p>
       </div>
     </div>
   );

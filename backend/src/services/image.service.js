@@ -1,0 +1,151 @@
+import { prisma } from "../config/prisma.config.js";
+
+/**
+ * Add images to a listing
+ * @param {number} listingId - The listing ID
+ * @param {Array} uploadResults - Array of Cloudinary upload results { secure_url, public_id }
+ * @returns {Promise<Array>} - Array of created image records
+ */
+export async function addImages(listingId, uploadResults) {
+  // Check if listing already has a cover image
+  const existingImages = await prisma.image.findMany({
+    where: { listingId },
+  });
+
+  const hasCover = existingImages.some((img) => img.isCover);
+
+  const imageData = uploadResults.map((result, index) => ({
+    listingId,
+    url: result.secure_url,      // ✅ Use secure_url from Cloudinary result
+    publicId: result.public_id,  // ✅ Changed from s3Key to publicId
+    isCover: !hasCover && index === 0,
+  }));
+
+  await prisma.image.createMany({
+    data: imageData,
+  });
+
+  return prisma.image.findMany({
+    where: { listingId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+// ... rest of the functions stay the same
+
+/**
+ * Get all images for a listing
+ * @param {number} listingId - The listing ID
+ * @returns {Promise<Array>} - Array of images
+ */
+export async function getImagesByListingId(listingId) {
+  return prisma.image.findMany({
+    where: { listingId },
+    orderBy: [{ isCover: "desc" }, { createdAt: "asc" }],
+  });
+}
+
+/**
+ * Set an image as cover
+ * @param {number} listingId - The listing ID
+ * @param {number} imageId - The image ID to set as cover
+ * @returns {Promise<Object>} - Updated image
+ */
+export async function setCoverImage(listingId, imageId) {
+  // Verify image belongs to listing
+  const image = await prisma.image.findFirst({
+    where: { id: imageId, listingId },
+  });
+
+  if (!image) {
+    throw new Error("Image not found");
+  }
+
+  // Remove cover from all images
+  await prisma.image.updateMany({
+    where: { listingId },
+    data: { isCover: false },
+  });
+
+  // Set new cover
+  return prisma.image.update({
+    where: { id: imageId },
+    data: { isCover: true },
+  });
+}
+
+/**
+ * Delete an image
+ * @param {number} listingId - The listing ID
+ * @param {number} imageId - The image ID to delete
+ * @returns {Promise<Object>} - Deleted image
+ */
+export async function deleteImage(listingId, imageId) {
+  // Verify image belongs to listing
+  const image = await prisma.image.findFirst({
+    where: { id: imageId, listingId },
+  });
+
+  if (!image) {
+    throw new Error("Image not found");
+  }
+
+  const deleted = await prisma.image.delete({
+    where: { id: imageId },
+  });
+
+  // If deleted image was cover, set another image as cover
+  if (image.isCover) {
+    const firstImage = await prisma.image.findFirst({
+      where: { listingId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (firstImage) {
+      await prisma.image.update({
+        where: { id: firstImage.id },
+        data: { isCover: true },
+      });
+    }
+  }
+
+  return deleted;
+}
+
+/**
+ * Reorder images
+ * @param {number} listingId - The listing ID
+ * @param {number[]} imageIds - Array of image IDs in desired order
+ * @returns {Promise<Array>} - Reordered images
+ */
+export async function reorderImages(listingId, imageIds) {
+  // Verify all images belong to listing
+  const images = await prisma.image.findMany({
+    where: { listingId },
+  });
+
+  const existingIds = images.map((img) => img.id);
+  const validOrder = imageIds.every((id) => existingIds.includes(id));
+
+  if (!validOrder) {
+    throw new Error("Invalid image IDs");
+  }
+
+  // Update order (using createdAt as a workaround since we don't have an order field)
+  const baseTime = new Date();
+  const updates = imageIds.map((id, index) =>
+    prisma.image.update({
+      where: { id },
+      data: {
+        createdAt: new Date(baseTime.getTime() + index * 1000),
+      },
+    })
+  );
+
+  await Promise.all(updates);
+
+  return prisma.image.findMany({
+    where: { listingId },
+    orderBy: { createdAt: "asc" },
+  });
+}

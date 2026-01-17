@@ -3,16 +3,15 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "../../../../contexts/AuthContext.js";
-import { api } from "../../../../utils/api.js";
+import { useAuth, RateLimitError, getErrorMessage } from "../../../../contexts/AuthContext.js";
 import SocialLoginButtons from "../../../../components/SocialLoginButtons.jsx";
 import { COUNTRIES_WITH_NEPAL_FIRST } from "@/utils/countries.js";
-import { Globe, ChevronDown } from "lucide-react"; // ✅ Added imports
+import { Globe, ChevronDown } from "lucide-react";
 
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loginWithOAuth, user } = useAuth();
+  const { register, user } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -20,16 +19,20 @@ function RegisterContent() {
     password: "",
     confirmPassword: "",
     country: "NP",
-    role: "HOST"
+    role: "HOST",
+    acceptTerms: false, // ✅ Added acceptTerms
   });
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("error");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [countdown, setCountdown] = useState(0);
   const [passwordStrength, setPasswordStrength] = useState({
     hasMinLength: false,
     hasUppercase: false,
     hasNumber: false,
+    hasSpecial: false,
   });
 
   // Redirect if already logged in
@@ -39,15 +42,26 @@ function RegisterContent() {
     }
   }, [user, router]);
 
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const { name, value, type, checked } = e.target;
+    const newValue = type === "checkbox" ? checked : value;
+    
+    setFormData({ ...formData, [name]: newValue });
     
     if (name === "password") {
       setPasswordStrength({
         hasMinLength: value.length >= 8,
         hasUppercase: /[A-Z]/.test(value),
         hasNumber: /[0-9]/.test(value),
+        hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(value),
       });
     }
     
@@ -61,6 +75,8 @@ function RegisterContent() {
     
     if (!formData.name.trim()) {
       newErrors.name = "Name is required";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters";
     }
     
     if (!formData.email.trim()) {
@@ -82,14 +98,19 @@ function RegisterContent() {
         newErrors.password = "Password must contain at least one uppercase letter";
       } else if (!/[0-9]/.test(formData.password)) {
         newErrors.password = "Password must contain at least one number";
+      } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+        newErrors.password = "Password must contain at least one special character";
       }
     }
 
-    // ✅ Added confirm password validation
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = "Please confirm your password";
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    if (!formData.acceptTerms) {
+      newErrors.acceptTerms = "You must accept the terms and conditions";
     }
     
     return newErrors;
@@ -104,33 +125,47 @@ function RegisterContent() {
       setErrors(validationErrors);
       return;
     }
+
+    if (countdown > 0) {
+      return;
+    }
     
     setIsLoading(true);
 
     try {
-      const data = await api("/api/auth/register", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (data.error) {
-        setMessage(data.error);
-      } else {
-        // ✅ FIXED: Update Auth Context immediately
-        loginWithOAuth(data.user, data.token);
-        
-        setMessage(data.message || "Registration successful! Redirecting...");
-        
-        // Redirect after short delay
-        setTimeout(() => {
-          router.push("/");
-        }, 1000);
-      }
+      const result = await register(formData);
+      
+      setMessageType("success");
+      setMessage(result.message || "Registration successful! Redirecting...");
+      
+      setTimeout(() => {
+        router.push("/");
+      }, 1500);
     } catch (error) {
-      setMessage(error.message || "An error occurred. Please try again.");
+      console.error("Registration error:", error);
+      setMessageType("error");
+
+      if (error instanceof RateLimitError || error.code === "REGISTRATION_RATE_LIMIT") {
+        const retryAfter = error.retryAfter || 3600;
+        setCountdown(retryAfter);
+        setMessage(`Too many registration attempts. Please try again in ${formatTime(retryAfter)}.`);
+      } else if (error.code === "CONFLICT" || error.message?.includes("already exists")) {
+        setMessage("An account with this email already exists. Please log in or use a different email.");
+      } else {
+        setMessage(error.userMessage || error.message || "Registration failed. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${secs} seconds`;
   };
 
   return (
@@ -160,8 +195,15 @@ function RegisterContent() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {message && (
-              <div className={`px-4 py-3 rounded-lg text-sm ${message.includes("successful") || message.includes("Redirecting") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+              <div className={`px-4 py-3 rounded-lg text-sm ${
+                messageType === "success" 
+                  ? "bg-green-50 text-green-700 border border-green-200" 
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
                 {message}
+                {countdown > 0 && (
+                  <p className="mt-1 font-medium">Try again in: {formatTime(countdown)}</p>
+                )}
               </div>
             )}
 
@@ -178,7 +220,7 @@ function RegisterContent() {
                 className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.name ? "border-red-300" : "border-gray-300"}`}
                 value={formData.name}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={isLoading || countdown > 0}
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
             </div>
@@ -196,12 +238,12 @@ function RegisterContent() {
                 className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.email ? "border-red-300" : "border-gray-300"}`}
                 value={formData.email}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={isLoading || countdown > 0}
               />
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
             </div>
 
-            {/* ✅ FIXED: Country Field */}
+            {/* Country Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Country <span className="text-red-500">*</span>
@@ -214,7 +256,7 @@ function RegisterContent() {
                   onChange={handleChange}
                   className={`block w-full pl-10 pr-10 py-3 border rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${errors.country ? "border-red-300" : "border-gray-300"}`}
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || countdown > 0}
                 >
                   <option value="">Select your country</option>
                   {COUNTRIES_WITH_NEPAL_FIRST.map((country) => (
@@ -249,7 +291,7 @@ function RegisterContent() {
                   className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10 ${errors.password ? "border-red-300" : "border-gray-300"}`}
                   value={formData.password}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  disabled={isLoading || countdown > 0}
                 />
                 <button
                   type="button"
@@ -284,10 +326,14 @@ function RegisterContent() {
                   <span className="mr-2">{passwordStrength.hasNumber ? "✓" : "○"}</span>
                   One number
                 </div>
+                <div className={`flex items-center text-xs ${passwordStrength.hasSpecial ? "text-green-600" : "text-gray-500"}`}>
+                  <span className="mr-2">{passwordStrength.hasSpecial ? "✓" : "○"}</span>
+                  One special character (!@#$%^&*)
+                </div>
               </div>
             </div>
 
-            {/* ✅ Confirm Password Field */}
+            {/* Confirm Password Field */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm Password
@@ -301,7 +347,7 @@ function RegisterContent() {
                   className={`block w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10 ${errors.confirmPassword ? "border-red-300" : "border-gray-300"}`}
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  disabled={isLoading || countdown > 0}
                 />
               </div>
               {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
@@ -312,29 +358,37 @@ function RegisterContent() {
               )}
             </div>
 
-            {/* Terms */}
+            {/* Terms Checkbox */}
             <div className="flex items-start">
               <input
-                id="terms"
+                id="acceptTerms"
+                name="acceptTerms"
                 type="checkbox"
-                required
-                className="h-4 w-4 text-emerald-600 border-gray-300 rounded mt-1"
+                checked={formData.acceptTerms}
+                onChange={handleChange}
+                className={`h-4 w-4 text-emerald-600 border-gray-300 rounded mt-1 ${errors.acceptTerms ? "border-red-500" : ""}`}
+                disabled={isLoading || countdown > 0}
               />
-              <label htmlFor="terms" className="ml-2 text-sm text-gray-700">
+              <label htmlFor="acceptTerms" className="ml-2 text-sm text-gray-700">
                 I agree to the{' '}
                 <Link href="/terms" className="text-emerald-600 hover:underline">Terms</Link>
                 {' '}and{' '}
                 <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
               </label>
             </div>
+            {errors.acceptTerms && <p className="text-sm text-red-600 -mt-3">{errors.acceptTerms}</p>}
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 transition-all"
+              disabled={isLoading || countdown > 0}
+              className={`w-full py-3.5 font-semibold rounded-lg transition-all ${
+                countdown > 0
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+              }`}
             >
-              {isLoading ? "Creating account..." : "Create Host Account"}
+              {isLoading ? "Creating account..." : countdown > 0 ? `Try again in ${formatTime(countdown)}` : "Create Host Account"}
             </button>
           </form>
 
@@ -348,7 +402,7 @@ function RegisterContent() {
             </p>
             <p className="text-sm text-gray-600">
               Just want to book?{' '}
-              <Link href="/auth/register" className="font-semibold text-blue-600 hover:text-blue-500">
+              <Link href="/auth/register/user" className="font-semibold text-blue-600 hover:text-blue-500">
                 Register as User
               </Link>
             </p>

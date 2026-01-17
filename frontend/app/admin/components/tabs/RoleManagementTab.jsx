@@ -17,53 +17,70 @@ export default function RoleManagementTab() {
     fetchUsers();
   }, [search, roleFilter, page]);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (search) params.append("search", search);
-      if (roleFilter) params.append("role", roleFilter);
-      params.append("page", page.toString());
-      params.append("limit", "15");
-
-      const data = await api(`/api/auth/admin/users?${params.toString()}`);
-      setUsers(data.users || []);
-      setPagination(data.pagination);
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRoleChange = async (userId, currentRole) => {
-    const newRole = currentRole === "USER" ? "HOST" : "USER";
+const fetchUsers = async () => {
+  try {
+    setLoading(true);
     
-    if (!confirm(`Change this user's role from ${currentRole} to ${newRole}?`)) {
-      return;
+    // Fetch all recent users
+    const response = await api(`/api/admin/users/recent?limit=100`);
+    let allUsers = Array.isArray(response) ? response : [];
+    
+    // Apply client-side filtering
+    if (search) {
+      const searchLower = search.toLowerCase();
+      allUsers = allUsers.filter(u => 
+        u.name?.toLowerCase().includes(searchLower) || 
+        u.email?.toLowerCase().includes(searchLower)
+      );
     }
-
-    setChangingRole(userId);
-    try {
-      const response = await api(`/api/auth/admin/change-role/${userId}`, {
-        method: "PUT",
-        body: { newRole }
-      });
-
-      toast.success(response.message);
-      
-      // Update local state
-      setUsers(users.map(user => 
-        user.id === userId ? { ...user, role: newRole } : user
-      ));
-    } catch (error) {
-      toast.error(error.message || "Failed to change role");
-    } finally {
-      setChangingRole(null);
+    
+    if (roleFilter) {
+      allUsers = allUsers.filter(u => u.role === roleFilter);
     }
-  };
+    
+    // Apply client-side pagination
+    const total = allUsers.length;
+    const limit = 15;
+    const pages = Math.ceil(total / limit);
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedUsers = allUsers.slice(start, end);
+    
+    setUsers(paginatedUsers);
+    setPagination({ total, pages, page, limit });
+  } catch (error) {
+    console.error("Failed to fetch users:", error);
+    toast.error("Failed to load users");
+  } finally {
+    setLoading(false);
+  }
+};
 
+const handleRoleChange = async (userId, currentRole) => {
+  const newRole = currentRole === "USER" ? "HOST" : "USER";
+  
+  if (!confirm(`Change this user's role from ${currentRole} to ${newRole}?`)) {
+    return;
+  }
+
+  setChangingRole(userId);
+  try {
+    // You'll need to add this endpoint to your backend
+    await api(`/api/admin/users/${userId}/role`, {
+      method: "PUT",
+      body: { role: newRole }
+    });
+
+    toast.success(`Role changed to ${newRole}`);
+    
+    // Refresh the list
+    fetchUsers();
+  } catch (error) {
+    toast.error(error.message || "Failed to change role");
+  } finally {
+    setChangingRole(null);
+  }
+};
   return (
     <div className="space-y-6">
       {/* Header */}

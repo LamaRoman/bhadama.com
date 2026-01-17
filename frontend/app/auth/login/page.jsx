@@ -1,23 +1,26 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useAuth } from "../../../contexts/AuthContext.js";
+import { useAuth, RateLimitError, getErrorMessage } from "../../../contexts/AuthContext.js";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SocialLoginButtons from "../../../components/SocialLoginButtons";
 
 function LoginContent() {
-  const { login, user } = useAuth();
+  const { login, user, sessionError, clearSessionError } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
-  // Check for OAuth errors
+  // Handle OAuth errors from URL
   useEffect(() => {
     const errorParam = searchParams.get("error");
     if (errorParam) {
@@ -30,42 +33,102 @@ function LoginContent() {
     }
   }, [searchParams]);
 
-  // ✅ FIXED: Redirect if already logged in (don't call login again)
+  // Handle session errors (e.g., token expired)
+  useEffect(() => {
+    if (sessionError) {
+      const messages = {
+        SESSION_EXPIRED: "Your session has expired. Please log in again.",
+        TOKEN_REFRESH_FAILED: "Session expired. Please log in again.",
+      };
+      setError(messages[sessionError] || "Please log in again.");
+      clearSessionError();
+    }
+  }, [sessionError, clearSessionError]);
+
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (countdown === 0 && errorCode === "RATE_LIMIT") {
+      // Clear rate limit error when countdown ends
+      setError("");
+      setErrorCode(null);
+    }
+  }, [countdown, errorCode]);
+
+  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       const redirect = searchParams.get("redirect") || "/";
-      console.log("✅ User already logged in, redirecting to:", redirect);
-      router.replace(redirect); // Use replace instead of push
+      console.log("✅ User logged in, redirecting to:", redirect);
+      router.replace(redirect);
     }
   }, [user, router, searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
+    setErrorCode(null);
 
     if (!email.trim() || !password.trim()) {
       setError("Please fill in all fields");
-      setIsLoading(false);
       return;
     }
 
-    try {
-      // ✅ Use the login function from AuthContext - it handles the API call
-      await login(email, password);
+    // Don't submit if rate limited
+    if (countdown > 0) {
+      return;
+    }
 
+    setIsLoading(true);
+
+    try {
+      await login(email, password, rememberMe);
+      
       // Redirect after successful login
       const redirect = searchParams.get('redirect');
       router.push(redirect || "/");
-
     } catch (error) {
       console.error("Login error:", error);
-      setError(error.message || "Invalid email or password. Please try again.");
+
+      // Handle rate limit error with countdown
+      if (error instanceof RateLimitError || error.code === "LOGIN_RATE_LIMIT") {
+        const retryAfter = error.retryAfter || 900; // 15 minutes default
+        setCountdown(retryAfter);
+        setErrorCode("RATE_LIMIT");
+        setError(`Too many login attempts. Please try again in ${formatTime(retryAfter)}.`);
+      } 
+      // Handle account locked
+      else if (error.code === "ACCOUNT_LOCKED") {
+        setErrorCode("ACCOUNT_LOCKED");
+        setError(error.message || "Your account is temporarily locked. Please try again later.");
+      }
+      // Handle account suspended
+      else if (error.code === "ACCOUNT_SUSPENDED") {
+        setErrorCode("ACCOUNT_SUSPENDED");
+        setError("Your account has been suspended. Please contact support.");
+      }
+      // Handle other errors
+      else {
+        setError(error.userMessage || error.message || "Invalid email or password.");
+      }
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ Don't render form if user is already logged in
+  // Format seconds to MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${secs} seconds`;
+  };
+
+  // Don't render form if user is already logged in
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -83,7 +146,7 @@ function LoginContent() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
           
-          {/* Google Login - role="USER" for login page (existing users keep their role) */}
+          {/* Google Login */}
           <SocialLoginButtons role="USER" />
 
           {/* Divider */}
@@ -100,11 +163,29 @@ function LoginContent() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className={`px-4 py-3 rounded-xl flex items-start ${
+                errorCode === "RATE_LIMIT" 
+                  ? "bg-orange-50 border border-orange-200 text-orange-700"
+                  : errorCode === "ACCOUNT_SUSPENDED"
+                  ? "bg-red-100 border border-red-300 text-red-800"
+                  : "bg-red-50 border border-red-200 text-red-700"
+              }`}>
+                <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {error}
+                <div>
+                  <p>{error}</p>
+                  {countdown > 0 && (
+                    <p className="mt-1 text-sm font-medium">
+                      Try again in: {formatTime(countdown)}
+                    </p>
+                  )}
+                  {errorCode === "ACCOUNT_SUSPENDED" && (
+                    <Link href="/support" className="mt-2 inline-block text-sm underline">
+                      Contact Support
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
@@ -127,7 +208,7 @@ function LoginContent() {
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoading || countdown > 0}
                 />
               </div>
             </div>
@@ -138,7 +219,6 @@ function LoginContent() {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -154,7 +234,7 @@ function LoginContent() {
                   className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoading || countdown > 0}
                 />
                 <button
                   type="button"
@@ -181,7 +261,10 @@ function LoginContent() {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                disabled={isLoading || countdown > 0}
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                 Remember me for 30 days
@@ -191,8 +274,12 @@ function LoginContent() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || countdown > 0}
+              className={`w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed ${
+                countdown > 0 
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              }`}
             >
               {isLoading ? (
                 <>
@@ -202,10 +289,13 @@ function LoginContent() {
                   </svg>
                   Signing in...
                 </>
+              ) : countdown > 0 ? (
+                `Try again in ${formatTime(countdown)}`
               ) : (
                 'Sign in'
               )}
             </button>
+
             <div className="text-center">
               <Link
                 href="/auth/forgot-password"

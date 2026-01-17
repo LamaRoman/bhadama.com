@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../utils/api.js";
-import { CheckCircle } from "lucide-react";
+import { useAuth } from "../../../contexts/AuthContext.js";
+import { api, getErrorMessage } from "../../../utils/api.js";
+import { CheckCircle, Shield, LogOut } from "lucide-react";
 
 export default function ProfilePage() {
+  const { user: authUser, logout, refreshUser } = useAuth();
   const [user, setUser] = useState({ 
     name: "", 
     email: "", 
@@ -21,6 +23,13 @@ export default function ProfilePage() {
     newPassword: "",
     confirmPassword: "",
   });
+  const [passwordStrength, setPasswordStrength] = useState({
+    hasMinLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    hasSpecial: false,
+  });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -28,6 +37,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const router = useRouter();
@@ -44,15 +54,26 @@ export default function ProfilePage() {
 
   const canChangeName = getDaysUntilNameChange() === 0;
 
+  // Update password strength indicators
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/auth/login");
+    setPasswordStrength({
+      hasMinLength: passwords.newPassword.length >= 8,
+      hasUppercase: /[A-Z]/.test(passwords.newPassword),
+      hasLowercase: /[a-z]/.test(passwords.newPassword),
+      hasNumber: /[0-9]/.test(passwords.newPassword),
+      hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(passwords.newPassword),
+    });
+  }, [passwords.newPassword]);
+
+  useEffect(() => {
+    // Check if user is authenticated
+    if (!authUser && !localStorage.getItem("token")) {
+      router.push("/auth/login?redirect=/profile");
       return;
     }
 
     fetchProfile();
-  }, [router]);
+  }, [authUser, router]);
 
   const fetchProfile = async () => {
     try {
@@ -75,7 +96,13 @@ export default function ProfilePage() {
       });
     } catch (err) {
       console.error(err);
-      router.push("/auth/login");
+      // Handle auth errors
+      if (err.code === "INVALID_TOKEN" || err.code === "TOKEN_EXPIRED" || err.code === "NO_TOKEN") {
+        logout();
+        router.push("/auth/login?redirect=/profile");
+      } else {
+        setError(getErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -130,11 +157,13 @@ export default function ProfilePage() {
         setSuccess("Profile photo updated successfully!");
         setPhotoFile(null);
         setPhotoPreview(null);
+        // Refresh auth context
+        refreshUser().catch(() => {});
         setTimeout(() => setSuccess(""), 3000);
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to upload photo. Please try again.");
+      setError(getErrorMessage(err) || "Failed to upload photo. Please try again.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -160,11 +189,12 @@ export default function ProfilePage() {
       } else {
         setUser({ ...user, profilePhoto: "" });
         setSuccess("Profile photo removed successfully!");
+        refreshUser().catch(() => {});
         setTimeout(() => setSuccess(""), 3000);
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to remove photo. Please try again.");
+      setError(getErrorMessage(err) || "Failed to remove photo. Please try again.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -197,6 +227,9 @@ export default function ProfilePage() {
           }));
         }
         
+        // Refresh auth context
+        refreshUser().catch(() => {});
+        
         // Show appropriate success message
         if (response.user?.phone && !response.user?.phoneVerified) {
           setSuccess("Profile updated! Please verify your phone number.");
@@ -208,37 +241,75 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to update profile. Please try again.");
+      setError(getErrorMessage(err) || "Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
+  const validatePassword = () => {
+    const { newPassword, confirmPassword, currentPassword } = passwords;
+
+    if (!currentPassword.trim()) {
+      return "Current password is required";
+    }
+
+    if (newPassword.length < 8) {
+      return "New password must be at least 8 characters long";
+    }
+
+    if (newPassword.length > 128) {
+      return "Password must be less than 128 characters";
+    }
+
+    if (!/[a-z]/.test(newPassword)) {
+      return "Password must contain at least one lowercase letter";
+    }
+
+    if (!/[A-Z]/.test(newPassword)) {
+      return "Password must contain at least one uppercase letter";
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      return "Password must contain at least one number";
+    }
+
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+      return "Password must contain at least one special character";
+    }
+
+    if (newPassword !== confirmPassword) {
+      return "New passwords do not match";
+    }
+
+    if (currentPassword === newPassword) {
+      return "New password must be different from current password";
+    }
+
+    return null;
+  };
+
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    
+    // Validate passwords
+    const validationError = validatePassword();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setChangingPassword(true);
     setError("");
     setSuccess("");
 
-    // Validate passwords
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      setError("New passwords do not match");
-      setChangingPassword(false);
-      return;
-    }
-
-    if (passwords.newPassword.length < 6) {
-      setError("Password must be at least 6 characters long");
-      setChangingPassword(false);
-      return;
-    }
-
     try {
-      const response = await api("/api/users/change-password", {
-        method: "PUT",
+      const response = await api("/api/auth/change-password", {
+        method: "POST",
         body: {
           currentPassword: passwords.currentPassword,
           newPassword: passwords.newPassword,
+          confirmPassword: passwords.confirmPassword,
         },
       });
 
@@ -256,10 +327,24 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to change password. Please try again.");
+      
+      // Handle specific error codes
+      if (err.code === "INVALID_CREDENTIALS") {
+        setError("Current password is incorrect");
+      } else {
+        setError(getErrorMessage(err) || "Failed to change password. Please try again.");
+      }
     } finally {
       setChangingPassword(false);
     }
+  };
+
+  const handleLogout = async () => {
+    const confirmed = window.confirm("Are you sure you want to log out?");
+    if (!confirmed) return;
+
+    await logout();
+    router.push("/auth/login");
   };
 
   if (loading) {
@@ -284,8 +369,19 @@ export default function ProfilePage() {
             </svg>
             Back
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-          <p className="text-gray-600 mt-1">Manage your profile and account preferences</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
+              <p className="text-gray-600 mt-1">Manage your profile and account preferences</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              Log Out
+            </button>
+          </div>
         </div>
 
         {/* Alert Messages */}
@@ -527,9 +623,12 @@ export default function ProfilePage() {
         {/* Password Section */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Password</h2>
-              <p className="text-sm text-gray-500">Change your password</p>
+            <div className="flex items-center gap-3">
+              <Shield className="w-6 h-6 text-gray-400" />
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Password</h2>
+                <p className="text-sm text-gray-500">Change your password</p>
+              </div>
             </div>
             {!showPasswordSection && (
               <button
@@ -563,19 +662,58 @@ export default function ProfilePage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   New Password
                 </label>
-                <input
-                  type="password"
-                  value={passwords.newPassword}
-                  onChange={(e) =>
-                    setPasswords({ ...passwords, newPassword: e.target.value })
-                  }
-                  placeholder="Enter new password"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
-                  required
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Must be 6-128 characters with at least one uppercase letter, one lowercase letter, and one number
-                </p>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwords.newPassword}
+                    onChange={(e) =>
+                      setPasswords({ ...passwords, newPassword: e.target.value })
+                    }
+                    placeholder="Enter new password"
+                    className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                {/* Password Strength Indicators */}
+                <div className="mt-2 space-y-1">
+                  <div className={`flex items-center text-xs ${passwordStrength.hasMinLength ? "text-green-600" : "text-gray-500"}`}>
+                    <span className="mr-2">{passwordStrength.hasMinLength ? "✓" : "○"}</span>
+                    At least 8 characters
+                  </div>
+                  <div className={`flex items-center text-xs ${passwordStrength.hasLowercase ? "text-green-600" : "text-gray-500"}`}>
+                    <span className="mr-2">{passwordStrength.hasLowercase ? "✓" : "○"}</span>
+                    One lowercase letter
+                  </div>
+                  <div className={`flex items-center text-xs ${passwordStrength.hasUppercase ? "text-green-600" : "text-gray-500"}`}>
+                    <span className="mr-2">{passwordStrength.hasUppercase ? "✓" : "○"}</span>
+                    One uppercase letter
+                  </div>
+                  <div className={`flex items-center text-xs ${passwordStrength.hasNumber ? "text-green-600" : "text-gray-500"}`}>
+                    <span className="mr-2">{passwordStrength.hasNumber ? "✓" : "○"}</span>
+                    One number
+                  </div>
+                  <div className={`flex items-center text-xs ${passwordStrength.hasSpecial ? "text-green-600" : "text-gray-500"}`}>
+                    <span className="mr-2">{passwordStrength.hasSpecial ? "✓" : "○"}</span>
+                    One special character (!@#$%^&*)
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -583,7 +721,7 @@ export default function ProfilePage() {
                   Confirm New Password
                 </label>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={passwords.confirmPassword}
                   onChange={(e) =>
                     setPasswords({ ...passwords, confirmPassword: e.target.value })
@@ -592,6 +730,11 @@ export default function ProfilePage() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-900"
                   required
                 />
+                {passwords.confirmPassword && passwords.newPassword === passwords.confirmPassword && (
+                  <p className="mt-2 text-sm text-green-600 flex items-center">
+                    <span className="mr-1">✓</span> Passwords match
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3">

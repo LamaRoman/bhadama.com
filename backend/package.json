@@ -13,7 +13,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:tiers": "node prisma/seeds/tierSeed.mjs",
-    "seed:notifications":"node prisma/seeds/notificationTemplateSeed.mjs"
+    "seed:notifications": "node prisma/seeds/notificationTemplateSeed.mjs"
   },
   "keywords": [],
   "author": "",
@@ -41,7 +41,8 @@
     "resend": "^6.6.0",
     "socket.io": "^4.8.1",
     "twilio": "^5.11.1",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

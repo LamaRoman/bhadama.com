@@ -3,8 +3,7 @@
 // ==========================================
 // Checks admin level permissions
 // ==========================================
-
-import { ADMIN_HIERARCHY } from "../config/roles.js";
+import { ADMIN_HIERARCHY } from "../config/roles.config.js";
 
 /**
  * Check if admin has required hierarchy level
@@ -14,27 +13,27 @@ import { ADMIN_HIERARCHY } from "../config/roles.js";
 export const checkAdminHierarchy = (requiredLevel) => {
   return (req, res, next) => {
     const user = req.user;
-
+    
     if (!user) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-
+    
     if (user.role !== "ADMIN") {
       return res.status(403).json({ error: "Admin access required" });
     }
-
-    // Get user's admin level
-    const userLevel = ADMIN_HIERARCHY[user.adminType] || 0;
+    
+    // Get user's admin level (FIXED: changed adminType to adminRole)
+    const userLevel = ADMIN_HIERARCHY[user.adminRole] || 0;
     const requiredLevelValue = ADMIN_HIERARCHY[requiredLevel] || 0;
-
+    
     if (userLevel < requiredLevelValue) {
       return res.status(403).json({
         error: `Insufficient permissions. Requires ${requiredLevel} access.`,
-        yourLevel: user.adminType || "NONE",
+        yourLevel: user.adminRole || "NONE",  // FIXED: changed adminType to adminRole
         requiredLevel,
       });
     }
-
+    
     next();
   };
 };

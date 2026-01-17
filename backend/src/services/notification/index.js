@@ -1,7 +1,7 @@
 // backend/services/notification/index.js
 // Main export for notification service
 
-import NotificationService from './NotificationService.js';
+import NotificationService from './notification.service.js';
 import { DEFAULT_CHANNELS, NOTIFICATION_CONFIG, RATE_LIMITS } from './config.js';
 import TemplateEngine from './templates/TemplateEngine.js';
 import { DEFAULT_TEMPLATES, seedTemplates } from './templates/defaultTemplates.js';

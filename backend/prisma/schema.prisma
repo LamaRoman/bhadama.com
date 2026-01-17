@@ -1,3 +1,9 @@
+// ==========================================
+// MYBIGYARD.COM - PRISMA SCHEMA
+// ==========================================
+// Integrated with Security Additions
+// ==========================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +12,10 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ==========================================
+// HOST TIER & SUBSCRIPTION SYSTEM
+// ==========================================
 
 model HostTier {
   id                    Int                @id @default(autoincrement())
@@ -94,6 +104,10 @@ model SubscriptionHistory {
   @@map("subscription_history")
 }
 
+// ==========================================
+// PAYMENT SYSTEM
+// ==========================================
+
 model Payment {
   id                   Int                @id @default(autoincrement())
   subscriptionId       Int?
@@ -121,6 +135,9 @@ model Payment {
   host                 User               @relation(fields: [hostId], references: [id])
   subscription         HostSubscription?  @relation(fields: [subscriptionId], references: [id])
 
+  @@index([hostId])
+  @@index([status])
+  @@index([createdAt])
   @@map("payments")
 }
 
@@ -156,12 +173,16 @@ model PlatformSettings {
   @@map("platform_settings")
 }
 
+// ==========================================
+// USER MODEL (with Security Additions)
+// ==========================================
+
 model User {
   id                           Int                 @id @default(autoincrement())
   name                         String
   email                        String              @unique
   password                     String?
-  country String?
+  country                      String?
   role                         Role                @default(USER)
   createdAt                    DateTime            @default(now())
   updatedAt                    DateTime            @updatedAt
@@ -181,7 +202,76 @@ model User {
   lastLoginAt                  DateTime?
   currentTier                  TierType            @default(FREE)
   tierExpiresAt                DateTime?
+  
+  // ==========================================
+  // 🔒 SECURITY ADDITIONS
+  // ==========================================
+  
+  // Failed login tracking (for account lockout)
+  failedLoginAttempts          Int                 @default(0)
+  lockedUntil                  DateTime?
+  
+  // Password security
+  lastPasswordChange           DateTime?
+  requirePasswordChange        Boolean             @default(false)
+  
+  // Two-factor authentication (future)
+  twoFactorEnabled             Boolean             @default(false)
+  twoFactorSecret              String?
+  twoFactorBackupCodes         String[]            @default([])
+  
+  // Session management
+  lastActiveAt                 DateTime?
+  
+  // ==========================================
+  // Email Verification
+  // ==========================================
+  emailVerificationToken       String?             @unique
+  emailVerificationExpiry      DateTime?
+  emailVerificationAttempts    Int                 @default(0)
+  emailVerificationLockedUntil DateTime?
+
+  // ==========================================
+  // Phone Verification
+  // ==========================================
+  phoneVerified                Boolean             @default(false)
+  phoneVerificationToken       String?
+  phoneVerificationExpiry      DateTime?
+  phoneVerificationAttempts    Int                 @default(0)
+  phoneVerificationLockedUntil DateTime?
+  phoneCountryCode             String?
+
+  // ==========================================
+  // Payment Fields
+  // ==========================================
+  paymentGateway               String?
+  paymentStatus                String?             @default("PENDING")
+  paymentTransactionId         String?
+  paymentReferenceId           String?
+  paymentDetails               Json?
+  paymentCompletedAt           DateTime?
+
+  // ==========================================
+  // Rate Limiting for OTP
+  // ==========================================
+  lastEmailOtpSent             DateTime?
+  emailOtpSendCount            Int                 @default(0)
+  emailOtpResetTime            DateTime?
+  lastPhoneOtpSent             DateTime?
+  phoneOtpSendCount            Int                 @default(0)
+  phoneOtpResetTime            DateTime?
+
+  // ==========================================
+  // Password Reset
+  // ==========================================
+  resetPasswordToken           String?             @unique
+  resetPasswordExpires         DateTime?
+
+  // ==========================================
+  // Relations
+  // ==========================================
   adminProfile                 AdminProfile?
+  securityAuditLogs            SecurityAuditLog[]  @relation("UserSecurityAuditLogs")
   auditLogs                    AuditLog[]          @relation("AdminAuditLogs")
   blogComments                 BlogComment[]       @relation("BlogCommentAuthor")
   blogCommentLikes             BlogCommentLike[]   @relation("CommentLikesUser")
@@ -204,46 +294,16 @@ model User {
   payments                     Payment[]
   helpfulReviews               Review[]            @relation("HelpfulReviews")
   verificationLogs             VerificationLog[]
-  // Email Verification (3 new fields)
-  emailVerificationToken       String?             @unique
-  emailVerificationExpiry      DateTime?
-  emailVerificationAttempts    Int                 @default(0)
-  emailVerificationLockedUntil DateTime?
-
-  // Phone Verification (5 new fields)
-  phoneVerified                Boolean   @default(false)
-  phoneVerificationToken       String?
-  phoneVerificationExpiry      DateTime?
-  phoneVerificationAttempts    Int       @default(0)
-  phoneVerificationLockedUntil DateTime?
-  phoneCountryCode             String?
-
-  // ADD THESE PAYMENT FIELDS
-  paymentGateway        String?
-  paymentStatus         String?   @default("PENDING")
-  paymentTransactionId  String?
-  paymentReferenceId    String?
-  paymentDetails        Json?
-  paymentCompletedAt    DateTime?
-
-  // Rate Limiting for OTP (6 new fields)
-  lastEmailOtpSent  DateTime?
-  emailOtpSendCount Int       @default(0)
-  emailOtpResetTime DateTime?
-  lastPhoneOtpSent  DateTime?
-  phoneOtpSendCount Int       @default(0)
-  phoneOtpResetTime DateTime?
-
-  resetPasswordToken String?  @unique
-  resetPasswordExpires  DateTime?
-
-
-supportTickets         SupportTicket[]
-  supportMessages        SupportMessage[]
-  assignedTickets        SupportTicket[]   @relation("AssignedTickets")
+  supportTickets               SupportTicket[]
+  supportMessages              SupportMessage[]
+  assignedTickets              SupportTicket[]     @relation("AssignedTickets")
+  apiKeys                      ApiKey[]            @relation("UserApiKeys")
+  activeSessions               UserSession[]       @relation("UserSessions")
 
   @@index([email])
   @@index([role])
+  @@index([suspended])
+  @@index([lockedUntil])
 }
 
 model AdminProfile {
@@ -255,6 +315,161 @@ model AdminProfile {
 
   @@index([role])
 }
+
+// ==========================================
+// 🔒 SECURITY MODELS
+// ==========================================
+
+/// Security audit log for tracking sensitive operations
+model SecurityAuditLog {
+  id          Int      @id @default(autoincrement())
+  
+  // What action was performed
+  action      String   // 'LOGIN_SUCCESS', 'LOGIN_FAILED', 'PASSWORD_RESET', 'PAYMENT_COMPLETED', etc.
+  category    String?  // 'AUTH', 'PAYMENT', 'BOOKING', 'ADMIN'
+  
+  // Who performed it
+  userId      Int?
+  user        User?    @relation("UserSecurityAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Request details
+  ipAddress   String?
+  userAgent   String?
+  path        String?
+  method      String?  // 'GET', 'POST', etc.
+  
+  // Response details
+  statusCode  Int?
+  
+  // Additional context
+  metadata    Json?    // Any additional data (sanitized - no passwords/tokens)
+  
+  // Timing
+  duration    Int?     // Request duration in ms
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([ipAddress])
+  @@index([category])
+  @@map("security_audit_logs")
+}
+
+/// Track failed login attempts for rate limiting and security monitoring
+model FailedLoginAttempt {
+  id        Int      @id @default(autoincrement())
+  
+  // What was attempted
+  email     String   // Email that was attempted (lowercase)
+  
+  // Where from
+  ipAddress String
+  userAgent String?
+  
+  // Why it failed (optional - be careful not to leak info)
+  reason    String?  // 'INVALID_PASSWORD', 'USER_NOT_FOUND', 'ACCOUNT_LOCKED'
+  
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([ipAddress])
+  @@index([createdAt])
+  @@map("failed_login_attempts")
+}
+
+/// API Keys for programmatic access (if needed in future)
+model ApiKey {
+  id          Int       @id @default(autoincrement())
+  
+  // Owner
+  userId      Int
+  user        User      @relation("UserApiKeys", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Key identification
+  name        String    // Friendly name (e.g., "Production Server")
+  keyHash     String    @unique // SHA256 hash of the actual key
+  keyPrefix   String    // First 8 chars for identification (e.g., "mybg_sk_")
+  
+  // Permissions
+  permissions String[]  // e.g., ["bookings:read", "bookings:write"]
+  
+  // Usage tracking
+  lastUsedAt  DateTime?
+  lastUsedIp  String?
+  usageCount  Int       @default(0)
+  
+  // Lifecycle
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  revokedBy   Int?
+  
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+/// Rate limit records for persistent rate limiting across server restarts
+model RateLimitRecord {
+  id          Int      @id @default(autoincrement())
+  
+  // Unique key (e.g., "login:192.168.1.1:user@example.com")
+  key         String   @unique
+  
+  // Counter
+  count       Int      @default(1)
+  
+  // Window
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limit_records")
+}
+
+/// Active user sessions for session management
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  
+  // Owner
+  userId        Int
+  user          User      @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Session identification
+  sessionToken  String    @unique // Hashed session token
+  
+  // Device info
+  userAgent     String?
+  ipAddress     String?
+  deviceType    String?   // 'mobile', 'desktop', 'tablet'
+  browser       String?
+  os            String?
+  
+  // Location (optional)
+  country       String?
+  city          String?
+  
+  // Lifecycle
+  createdAt     DateTime  @default(now())
+  lastActiveAt  DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  
+  // Is this the current session?
+  isCurrent     Boolean   @default(false)
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+// ==========================================
+// LISTING SYSTEM
+// ==========================================
 
 model Listing {
   id                Int                 @id @default(autoincrement())
@@ -354,38 +569,12 @@ model PromotionRequest {
   @@index([status])
 }
 
-enum NotificationCategory {
-  TRANSACTIONAL   // Booking confirmations, receipts
-  ALERT           // Reminders, warnings
-  MARKETING       // Promotions, newsletters
-  SYSTEM          // Account, security
-}
-
-enum NotificationChannel {
-  IN_APP
-  EMAIL
-  SMS
-  PUSH
-  WHATSAPP
-}
-
-enum DeliveryStatus {
-  PENDING
-  QUEUED
-  SENDING
-  SENT
-  DELIVERED
-  FAILED
-  BOUNCED
-  REJECTED
-}
-
 model VerificationLog {
   id           Int      @id @default(autoincrement())
   userId       Int      @map("user_id")
-  type         String // 'EMAIL' or 'PHONE'
-  action       String // 'SENT', 'VERIFIED', 'FAILED'
-  provider     String? // 'resend', 'twilio', etc.
+  type         String   // 'EMAIL' or 'PHONE'
+  action       String   // 'SENT', 'VERIFIED', 'FAILED'
+  provider     String?  // 'resend', 'twilio', etc.
   success      Boolean  @default(false)
   errorMessage String?  @map("error_message")
   ipAddress    String?  @map("ip_address")
@@ -416,49 +605,54 @@ model Image {
   @@index([userId])
 }
 
-model Booking {
-  id                 Int           @id @default(autoincrement())
-  listingId          Int
-  userId             Int
-  createdAt          DateTime      @default(now())
-  bookingDate        DateTime
-  duration           Decimal       @db.Decimal(5, 2)
-  endTime            String
-  guests             Int           @default(1)
-  specialRequests    String?
-  startTime          String
-  status             BookingStatus @default(PENDING)
-  totalPrice         Decimal       @db.Decimal(10, 2)
-  updatedAt          DateTime      @updatedAt
-  basePrice          Decimal       @db.Decimal(10, 2)
-  bookingNumber      String        @unique @default(uuid())
-  canReview          Boolean       @default(false)
-  cancellationReason String?
-  cancelledAt        DateTime?
-  completedAt        DateTime?
-  extraGuestPrice    Decimal       @default(0) @db.Decimal(10, 2)
-  hasReviewed        Boolean       @default(false)
-  paymentStatus      String        @default("pending")
-  serviceFee         Decimal       @default(0) @db.Decimal(10, 2)
-  stripePaymentId    String?
-  tax                Decimal       @default(0) @db.Decimal(10, 2)
-  discountAmount     Decimal       @default(0) @db.Decimal(10, 2)
-  listing            Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refunds            Refund[]
-  review             Review?
+// ==========================================
+// BOOKING SYSTEM
+// ==========================================
 
-// Payment fields (for booking-specific payments)
-  paymentGateway        String?
-  paymentTransactionId  String?
-  paymentReferenceId    String?
-  paymentDetails        Json?
-  paymentCompletedAt    DateTime?
+model Booking {
+  id                   Int           @id @default(autoincrement())
+  listingId            Int
+  userId               Int
+  createdAt            DateTime      @default(now())
+  bookingDate          DateTime
+  duration             Decimal       @db.Decimal(5, 2)
+  endTime              String
+  guests               Int           @default(1)
+  specialRequests      String?
+  startTime            String
+  status               BookingStatus @default(PENDING)
+  totalPrice           Decimal       @db.Decimal(10, 2)
+  updatedAt            DateTime      @updatedAt
+  basePrice            Decimal       @db.Decimal(10, 2)
+  bookingNumber        String        @unique @default(uuid())
+  canReview            Boolean       @default(false)
+  cancellationReason   String?
+  cancelledAt          DateTime?
+  completedAt          DateTime?
+  extraGuestPrice      Decimal       @default(0) @db.Decimal(10, 2)
+  hasReviewed          Boolean       @default(false)
+  paymentStatus        String        @default("pending")
+  serviceFee           Decimal       @default(0) @db.Decimal(10, 2)
+  stripePaymentId      String?
+  tax                  Decimal       @default(0) @db.Decimal(10, 2)
+  discountAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  listing              Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refunds              Refund[]
+  review               Review?
+
+  // Payment fields
+  paymentGateway       String?
+  paymentTransactionId String?
+  paymentReferenceId   String?
+  paymentDetails       Json?
+  paymentCompletedAt   DateTime?
   
   @@index([userId])
   @@index([listingId])
   @@index([status])
   @@index([bookingDate])
+  @@index([paymentTransactionId])
 }
 
 model Review {
@@ -491,6 +685,10 @@ model Review {
   @@index([listingId])
   @@index([rating])
 }
+
+// ==========================================
+// ADMIN & MODERATION
+// ==========================================
 
 model AuditLog {
   id        Int      @id @default(autoincrement())
@@ -603,6 +801,10 @@ model SavedListing {
   @@index([userId])
 }
 
+// ==========================================
+// NOTIFICATION SYSTEM
+// ==========================================
+
 model Notification {
   id           Int                    @id @default(autoincrement())
   userId       Int
@@ -611,25 +813,13 @@ model Notification {
   title        String
   message      String
   data         Json?
-  
-  // Channels this notification was sent to
   channels     NotificationChannel[]  @default([IN_APP])
-  
-  // Status
   read         Boolean                @default(false)
   readAt       DateTime?
   archived     Boolean                @default(false)
-  
-  // Scheduling (for future scheduled notifications)
   scheduledFor DateTime?
-  
-  // Link to related entity for easy navigation
   actionUrl    String?
-  
-  // Timestamps
   createdAt    DateTime               @default(now())
-  
-  // Relations
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries   NotificationDelivery[]
   
@@ -640,31 +830,24 @@ model Notification {
   @@index([scheduledFor])
   @@map("notifications")
 }
+
 model NotificationDelivery {
   id                Int                 @id @default(autoincrement())
   notificationId    Int
   channel           NotificationChannel
   status            DeliveryStatus      @default(PENDING)
-  
-  // Provider info
-  provider          String?             // 'resend', 'plivo', 'sparrow', 'fcm'
-  providerMessageId String?             // External message ID
-  
-  // Delivery details
-  recipient         String?             // Email or phone used
+  provider          String?
+  providerMessageId String?
+  recipient         String?
   sentAt            DateTime?
   deliveredAt       DateTime?
   failedAt          DateTime?
   errorMessage      String?
   retryCount        Int                 @default(0)
-  
-  // Cost tracking
   cost              Decimal?            @db.Decimal(10, 6)
   currency          String?             @default("USD")
-  
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  
   notification      Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
   
   @@unique([notificationId, channel])
@@ -677,24 +860,14 @@ model NotificationDelivery {
 model NotificationPreference {
   id          Int                   @id @default(autoincrement())
   userId      Int
-  
-  // Which notification type this preference is for
   type        NotificationType
-  
-  // Which channels to use for this type
   channels    NotificationChannel[] @default([IN_APP])
-  
-  // Master enable/disable
   enabled     Boolean               @default(true)
-  
-  // Quiet hours (don't send during these times)
-  quietStart  String?               // "22:00"
-  quietEnd    String?               // "08:00"
+  quietStart  String?
+  quietEnd    String?
   timezone    String?               @default("Asia/Kathmandu")
-  
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
-  
   user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@unique([userId, type])
@@ -704,23 +877,16 @@ model NotificationPreference {
 
 model NotificationTemplate {
   id          Int                   @id @default(autoincrement())
-  
-  // Identification
-  slug        String                // 'booking_confirmed', 'payment_received'
+  slug        String
   type        NotificationType
   channel     NotificationChannel
   language    String                @default("en")
-  
-  // Content
-  subject     String?               // For email
+  subject     String?
   title       String
   body        String                @db.Text
-  
-  // Metadata
   description String?
   variables   String[]              @default([])
   isActive    Boolean               @default(true)
-  
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   
@@ -730,6 +896,11 @@ model NotificationTemplate {
   @@index([isActive])
   @@map("notification_templates")
 }
+
+// ==========================================
+// MESSAGING SYSTEM
+// ==========================================
+
 model Message {
   id         Int      @id @default(autoincrement())
   senderId   Int
@@ -758,6 +929,10 @@ model Analytics {
   @@index([date])
   @@index([listingId])
 }
+
+// ==========================================
+// BLOG SYSTEM
+// ==========================================
 
 model BlogPost {
   id              Int           @id @default(autoincrement())
@@ -904,6 +1079,61 @@ model BlogView {
   @@index([createdAt])
 }
 
+// ==========================================
+// SUPPORT TICKET SYSTEM
+// ==========================================
+
+model SupportTicket {
+  id              Int                 @id @default(autoincrement())
+  ticketNumber    String              @unique
+  userId          Int
+  userType        Role
+  category        TicketCategory
+  subject         String
+  priority        TicketPriority      @default(MEDIUM)
+  status          TicketStatus        @default(OPEN)
+  assignedToId    Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  closedAt        DateTime?
+  firstResponseAt DateTime?
+  relatedType     String?
+  relatedId       Int?
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo      User?               @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  messages        SupportMessage[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([createdAt])
+  @@index([ticketNumber])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id            Int                 @id @default(autoincrement())
+  ticketId      Int
+  senderId      Int
+  senderType    MessageSenderType
+  message       String              @db.Text
+  attachments   String[]            @default([])
+  isInternal    Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  ticket        SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender        User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([ticketId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("support_messages")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
 enum TierType {
   FREE
   BASIC
@@ -986,6 +1216,7 @@ enum BookingStatus {
   COMPLETED
   NO_SHOW
   REFUNDED
+  FAILED
 }
 
 enum ReviewStatus {
@@ -994,53 +1225,72 @@ enum ReviewStatus {
   REJECTED
 }
 
+enum NotificationCategory {
+  TRANSACTIONAL
+  ALERT
+  MARKETING
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+enum DeliveryStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+  REJECTED
+}
+
 enum NotificationType {
-  // Booking related
   BOOKING_CREATED
   BOOKING_CONFIRMED
   BOOKING_UPDATED
   BOOKING_CANCELLED
   BOOKING_REMINDER
   BOOKING_COMPLETED
-  
-  // Payment related
   PAYMENT_RECEIVED
   PAYMENT_FAILED
   PAYMENT_REFUNDED
   SUBSCRIPTION_RENEWED
   SUBSCRIPTION_EXPIRING
   SUBSCRIPTION_EXPIRED
-  
-  // Review related
   NEW_REVIEW
   REVIEW_RESPONSE
-  
-  // Message related
   MESSAGE
-  
-  // Host related
   NEW_BOOKING_REQUEST
   LISTING_APPROVED
   LISTING_REJECTED
-  
-  // Blog related
   BLOG_APPROVED
   BLOG_REJECTED
   BLOG_COMMENT
   BLOG_LIKE
-  
-  // Account related
   WELCOME
   EMAIL_VERIFIED
   PHONE_VERIFIED
   PASSWORD_CHANGED
   PASSWORD_RESET
   ACCOUNT_SUSPENDED
-  
-  // System
   SYSTEM
   MAINTENANCE
   PROMOTION
+  // Security notifications
+  LOGIN_NEW_DEVICE
+  LOGIN_SUSPICIOUS
+  PASSWORD_CHANGED_ALERT
+  TWO_FACTOR_ENABLED
+  TWO_FACTOR_DISABLED
+  API_KEY_CREATED
+  API_KEY_REVOKED
 }
 
 enum BlogStatus {
@@ -1070,97 +1320,16 @@ enum CommentStatus {
   DELETED
 }
 
-// ============================================
-// SUPPORT TICKET SYSTEM
-// Add this to the end of your schema.prisma
-// ============================================
-
-// Add these relations to your User model:
-// supportTickets         SupportTicket[]
-// supportMessages        SupportMessage[]
-// assignedTickets        SupportTicket[]   @relation("AssignedTickets")
-
-model SupportTicket {
-  id            Int                 @id @default(autoincrement())
-  ticketNumber  String              @unique  // TKT-2024-00001
-  
-  // Who submitted
-  userId        Int
-  userType      Role                // USER, HOST
-  
-  // Ticket details
-  category      TicketCategory
-  subject       String
-  priority      TicketPriority      @default(MEDIUM)
-  status        TicketStatus        @default(OPEN)
-  
-  // Assignment (optional - for when admin assigns to team member)
-  assignedToId  Int?
-  
-  // Timestamps
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  closedAt      DateTime?
-  firstResponseAt DateTime?
-  
-  // Related entities (optional - link to booking, listing, etc.)
-  relatedType   String?             // 'BOOKING', 'LISTING', 'PAYMENT'
-  relatedId     Int?
-  
-  // Relations
-  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedTo    User?               @relation("AssignedTickets", fields: [assignedToId], references: [id])
-  messages      SupportMessage[]
-  
-  @@index([userId])
-  @@index([status])
-  @@index([priority])
-  @@index([category])
-  @@index([createdAt])
-  @@index([ticketNumber])
-  @@map("support_tickets")
-}
-
-model SupportMessage {
-  id            Int                 @id @default(autoincrement())
-  ticketId      Int
-  senderId      Int
-  senderType    MessageSenderType   // USER, ADMIN
-  
-  // Content
-  message       String              @db.Text
-  attachments   String[]            @default([])
-  
-  // For admin internal notes (not visible to user)
-  isInternal    Boolean             @default(false)
-  
-  // Timestamps
-  createdAt     DateTime            @default(now())
-  
-  // Relations
-  ticket        SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender        User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  
-  @@index([ticketId])
-  @@index([senderId])
-  @@index([createdAt])
-  @@map("support_messages")
-}
-
-// ============================================
-// ENUMS
-// ============================================
-
 enum TicketCategory {
-  BOOKING         // Issues with bookings
-  PAYMENT         // Payment problems, refunds
-  LISTING         // Listing issues (for hosts)
-  ACCOUNT         // Account, profile issues
-  TECHNICAL       // App bugs, technical problems
-  HOST_ISSUE      // Guest reporting host issues
-  GUEST_ISSUE     // Host reporting guest issues
-  FEEDBACK        // General feedback
-  OTHER           // Anything else
+  BOOKING
+  PAYMENT
+  LISTING
+  ACCOUNT
+  TECHNICAL
+  HOST_ISSUE
+  GUEST_ISSUE
+  FEEDBACK
+  OTHER
 }
 
 enum TicketPriority {
@@ -1171,16 +1340,15 @@ enum TicketPriority {
 }
 
 enum TicketStatus {
-  OPEN            // New ticket
-  IN_PROGRESS     // Being worked on
-  WAITING_USER    // Waiting for user response
-  WAITING_ADMIN   // Waiting for admin response
-  RESOLVED        // Issue resolved
-  CLOSED          // Ticket closed
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  WAITING_ADMIN
+  RESOLVED
+  CLOSED
 }
 
 enum MessageSenderType {
   USER
   ADMIN
 }
-
