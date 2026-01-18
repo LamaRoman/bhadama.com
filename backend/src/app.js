@@ -12,7 +12,7 @@ import notificationRoutes from './routes/notificaion.route.js';
 import verificationRoutes from './routes/verification.routes.js';
 import authRoutes from "./routes/auth.routes.js";
 import hostDashboardRoutes from "./routes/host.dashboard.routes.js";
-import hostListingRoutes from "./routes/host.listing.Routes.js";
+import hostListingRoutes from "./routes/host.listing.routes.js";
 import publicListingRoutes from "./routes/public.listing.routes.js";
 import availabilityRoutes from "./routes/availability.routes.js";
 import userRoutes from "./routes/user.routes.js";
