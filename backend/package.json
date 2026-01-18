@@ -4,17 +4,16 @@
   "description": "",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "dev": "nodemon src/app.js",
-    "build": "prisma generate",
-    "start": "prisma migrate deploy && node src/app.js",
-    "start:dev": "node src/app.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "seed:tiers": "node prisma/seeds/tierSeed.mjs",
-    "seed:notifications": "node prisma/seeds/notificationTemplateSeed.mjs"
-  },
+ "scripts": {
+  "dev": "nodemon src/app.js",
+  "build": "prisma generate",
+  "start": "prisma generate && node src/app.js",
+  "db:push": "prisma db push",
+  "db:push:prod": "dotenv -e .env.production -- prisma db push",
+  "db:studio": "prisma studio",
+  "seed:tiers": "node prisma/seeds/tierSeed.mjs",
+  "seed:notifications": "node prisma/seeds/notificationTemplateSeed.mjs"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
