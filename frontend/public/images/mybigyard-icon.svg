@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="64" height="64" rx="14" fill="#3b82f6"/>
+  
+  <!-- Yard/Ground -->
+  <ellipse cx="32" cy="54" rx="26" ry="5" fill="#22c55e"/>
+  
+  <!-- House -->
+  <path d="M32 14 L52 28 L52 48 L12 48 L12 28 Z" fill="#fff"/>
+  
+  <!-- Roof -->
+  <path d="M32 8 L58 28 L52 28 L32 14 L12 28 L6 28 Z" fill="#1e40af"/>
+  
+  <!-- Door -->
+  <rect x="27" y="34" width="10" height="14" rx="1" fill="#fbbf24"/>
+  
+  <!-- Window -->
+  <rect x="16" y="30" width="8" height="8" rx="1" fill="#3b82f6" opacity="0.7"/>
+  
+  <!-- Tree -->
+  <circle cx="54" cy="38" r="7" fill="#22c55e"/>
+  <rect x="52" y="44" width="4" height="7" fill="#92400e"/>
+</svg>

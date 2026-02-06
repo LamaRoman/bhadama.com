@@ -1,0 +1,2 @@
+{"decodedKeys":["userId","email","role","iat","exp"],"ip":"::1","level":"warn","message":"Token missing required fields","path":"/profile","timestamp":"2025-12-20T04:48:40.336Z"}
+{"decodedKeys":["userId","email","role","iat","exp"],"ip":"::1","level":"warn","message":"Token missing required fields","path":"/profile","timestamp":"2025-12-20T04:48:40.339Z"}

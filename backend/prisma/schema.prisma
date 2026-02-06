@@ -1,0 +1,1351 @@
+// ==========================================
+// MYBIGYARD.COM - PRISMA SCHEMA
+// ==========================================
+// Changes:
+// - Blog-Listing relation removed (BlogPost is admin-only)
+// - ListingStory REMOVED
+// - HostStory ADDED (story about the host, 1:1 with User)
+// ==========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// HOST TIER & SUBSCRIPTION SYSTEM
+// ==========================================
+
+model HostTier {
+  id                    Int                @id @default(autoincrement())
+  name                  TierType           @unique
+  displayName           String
+  description           String?
+  maxListings           Int                @default(2)
+  maxPhotosPerListing   Int                @default(5)
+  featuredListingSlots  Int                @default(0)
+  commissionPercent     Float              @default(10.0)
+  features              Json?
+  trialDays             Int                @default(0)
+  isActive              Boolean            @default(true)
+  sortOrder             Int                @default(0)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  pendingSubscriptions  HostSubscription[] @relation("PendingTier")
+  previousSubscriptions HostSubscription[] @relation("PreviousTier")
+  subscriptions         HostSubscription[] @relation("CurrentTier")
+  pricing               TierPricing[]
+
+  @@map("host_tiers")
+}
+
+model TierPricing {
+  id              Int          @id @default(autoincrement())
+  tierId          Int
+  billingCycle    BillingCycle
+  currency        Currency     @default(NPR)
+  price           Float
+  discountPercent Float        @default(0)
+  finalPrice      Float
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  tier            HostTier     @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  @@unique([tierId, billingCycle, currency])
+  @@map("tier_pricing")
+}
+
+model HostSubscription {
+  id                       Int                   @id @default(autoincrement())
+  hostId                   Int                   @unique
+  tierId                   Int
+  billingCycle             BillingCycle?
+  currency                 Currency              @default(NPR)
+  status                   SubscriptionStatus    @default(ACTIVE)
+  startDate                DateTime              @default(now())
+  endDate                  DateTime?
+  trialEndDate             DateTime?
+  gracePeriodEnd           DateTime?
+  autoRenew                Boolean               @default(true)
+  cancelledAt              DateTime?
+  cancelReason             String?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  excessListingsCount      Int                   @default(0)
+  listingSelectionDeadline DateTime?
+  pendingTierId            Int?
+  previousTierId           Int?
+  tierChangeScheduledAt    DateTime?
+  host                     User                  @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  pendingTier              HostTier?             @relation("PendingTier", fields: [pendingTierId], references: [id])
+  previousTier             HostTier?             @relation("PreviousTier", fields: [previousTierId], references: [id])
+  tier                     HostTier              @relation("CurrentTier", fields: [tierId], references: [id])
+  payments                 Payment[]
+  history                  SubscriptionHistory[]
+
+  @@map("host_subscriptions")
+}
+
+model SubscriptionHistory {
+  id             Int              @id @default(autoincrement())
+  subscriptionId Int
+  action         String
+  fromTier       TierType?
+  toTier         TierType?
+  details        Json?
+  changedBy      Int?
+  changedByType  String?
+  createdAt      DateTime         @default(now())
+  subscription   HostSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("subscription_history")
+}
+
+// ==========================================
+// PAYMENT SYSTEM
+// ==========================================
+
+model Payment {
+  id                   Int                @id @default(autoincrement())
+  subscriptionId       Int?
+  hostId               Int
+  amount               Float
+  currency             Currency           @default(NPR)
+  gateway              PaymentGatewayType
+  gatewayTransactionId String?
+  gatewayResponse      Json?
+  status               PaymentStatus      @default(PENDING)
+  description          String?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  refundedAt           DateTime?
+  refundAmount         Float?
+  refundReason         String?
+  paidAt               DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  metadata             Json?
+  originalAmount       Float?
+  proratedCredit       Float?
+  type                 PaymentType        @default(FULL)
+  upgradeFromTierId    Int?
+  host                 User               @relation(fields: [hostId], references: [id])
+  subscription         HostSubscription?  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([hostId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([gatewayTransactionId])
+  @@map("payments")
+}
+
+model PaymentGatewayConfig {
+  id            Int                @id @default(autoincrement())
+  gateway       PaymentGatewayType @unique
+  displayName   String
+  merchantId    String?
+  secretKey     String?
+  publicKey     String?
+  baseUrl       String?
+  callbackUrl   String?
+  webhookSecret String?
+  isActive      Boolean            @default(false)
+  isTestMode    Boolean            @default(true)
+  currencies    Currency[]         @default([NPR])
+  countries     String[]           @default(["NP"])
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@map("payment_gateway_configs")
+}
+
+model PlatformSettings {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       Json
+  description String?
+  editableBy  String   @default("SUPER_ADMIN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+// ==========================================
+// USER MODEL
+// ==========================================
+
+model User {
+  id                           Int                 @id @default(autoincrement())
+  name                         String
+  email                        String              @unique
+  password                     String?
+  country                      String?
+  role                         Role                @default(USER)
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  profilePhoto                 String?
+  lastNameChange               DateTime?
+  bio                          String?
+  isVerified                   Boolean             @default(false)
+  phone                        String?
+  stripeCustomerId             String?
+  riskScore                    Int                 @default(0)
+  suspended                    Boolean             @default(false)
+  suspendedReason              String?
+  verifiedByAdmin              Boolean             @default(false)
+  adminRole                    AdminRole?
+  emailVerified                Boolean             @default(false)
+  googleId                     String?             @unique
+  lastLoginAt                  DateTime?
+  currentTier                  TierType            @default(FREE)
+  tierExpiresAt                DateTime?
+  failedLoginAttempts          Int                 @default(0)
+  lockedUntil                  DateTime?
+  lastPasswordChange           DateTime?
+  requirePasswordChange        Boolean             @default(false)
+  twoFactorEnabled             Boolean             @default(false)
+  twoFactorSecret              String?
+  twoFactorBackupCodes         String[]            @default([])
+  lastActiveAt                 DateTime?
+  emailVerificationToken       String?             @unique
+  emailVerificationExpiry      DateTime?
+  emailVerificationAttempts    Int                 @default(0)
+  emailVerificationLockedUntil DateTime?
+  phoneVerified                Boolean             @default(false)
+  phoneVerificationToken       String?
+  phoneVerificationExpiry      DateTime?
+  phoneVerificationAttempts    Int                 @default(0)
+  phoneVerificationLockedUntil DateTime?
+  phoneCountryCode             String?
+  paymentGateway               String?
+  paymentStatus                String?             @default("PENDING")
+  paymentTransactionId         String?
+  paymentReferenceId           String?
+  paymentDetails               Json?
+  paymentCompletedAt           DateTime?
+  lastEmailOtpSent             DateTime?
+  emailOtpSendCount            Int                 @default(0)
+  emailOtpResetTime            DateTime?
+  lastPhoneOtpSent             DateTime?
+  phoneOtpSendCount            Int                 @default(0)
+  phoneOtpResetTime            DateTime?
+  resetPasswordToken           String?             @unique
+  resetPasswordExpires         DateTime?
+
+  // Relations
+  adminProfile                 AdminProfile?
+  securityAuditLogs            SecurityAuditLog[]  @relation("UserSecurityAuditLogs")
+  auditLogs                    AuditLog[]          @relation("AdminAuditLogs")
+  blogComments                 BlogComment[]       @relation("BlogCommentAuthor")
+  blogCommentLikes             BlogCommentLike[]   @relation("CommentLikesUser")
+  blogLikes                    BlogLike[]          @relation("BlogLikesUser")
+  blogPosts                    BlogPost[]          @relation("BlogAuthor")
+  bookings                     Booking[]
+  contributorProfile           ContributorProfile? @relation("ContributorProfile")
+  images                       Image[]             @relation("UserImages")
+  listings                     Listing[]
+  listingModerations           ListingModeration[] @relation("AdminListingModerations")
+  receivedMessages             Message[]           @relation("ReceivedMessages")
+  sentMessages                 Message[]           @relation("SentMessages")
+  notifications                Notification[]
+  notificationPreferences      NotificationPreference[]
+  adminRefunds                 Refund[]            @relation("AdminRefunds")
+  reviews                      Review[]
+  reviewReports                ReviewReport[]      @relation("UserReviewReports")
+  savedListings                SavedListing[]
+  subscription                 HostSubscription?
+  payments                     Payment[]
+  helpfulReviews               Review[]            @relation("HelpfulReviews")
+  verificationLogs             VerificationLog[]
+  supportTickets               SupportTicket[]
+  supportMessages              SupportMessage[]
+  assignedTickets              SupportTicket[]     @relation("AssignedTickets")
+  apiKeys                      ApiKey[]            @relation("UserApiKeys")
+  activeSessions               UserSession[]       @relation("UserSessions")
+  hostStory                    HostStory?          @relation("HostStory")
+
+  @@index([email])
+  @@index([role])
+  @@index([suspended])
+  @@index([lockedUntil])
+}
+
+model AdminProfile {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @unique
+  role      AdminRole
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([role])
+}
+
+// ==========================================
+// SECURITY MODELS
+// ==========================================
+
+model SecurityAuditLog {
+  id          Int      @id @default(autoincrement())
+  action      String
+  category    String?
+  userId      Int?
+  user        User?    @relation("UserSecurityAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress   String?
+  userAgent   String?
+  path        String?
+  method      String?
+  statusCode  Int?
+  metadata    Json?
+  duration    Int?
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([ipAddress])
+  @@index([category])
+  @@map("security_audit_logs")
+}
+
+model FailedLoginAttempt {
+  id        Int      @id @default(autoincrement())
+  email     String
+  ipAddress String
+  userAgent String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([ipAddress])
+  @@index([createdAt])
+  @@map("failed_login_attempts")
+}
+
+model ApiKey {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation("UserApiKeys", fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  permissions String[]
+  lastUsedAt  DateTime?
+  lastUsedIp  String?
+  usageCount  Int       @default(0)
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  revokedBy   Int?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+model RateLimitRecord {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limit_records")
+}
+
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  user          User      @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+  sessionToken  String    @unique
+  userAgent     String?
+  ipAddress     String?
+  deviceType    String?
+  browser       String?
+  os            String?
+  country       String?
+  city          String?
+  createdAt     DateTime  @default(now())
+  lastActiveAt  DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  isCurrent     Boolean   @default(false)
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+// ==========================================
+// LISTING SYSTEM
+// ==========================================
+
+model Listing {
+  id                Int                 @id @default(autoincrement())
+  title             String
+  description       String?
+  location          String
+  hostId            Int
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  status            ListingStatus       @default(ACTIVE)
+  amenities         String[]
+  capacity          Int
+  hourlyRate        Decimal             @db.Decimal(10, 2)
+  maxHours          Int                 @default(12)
+  minHours          Int                 @default(1)
+  operatingHours    Json?
+  address           String?
+  extraGuestCharge  Decimal?            @db.Decimal(10, 2)
+  featured          Boolean             @default(false)
+  includedGuests    Int                 @default(10)
+  latitude          Decimal?            @db.Decimal(10, 8)
+  longitude         Decimal?            @db.Decimal(11, 8)
+  minCapacity       Int                 @default(1)
+  rules             String[]
+  size              String?
+  slug              String              @unique
+  views             Int                 @default(0)
+  bookingCount      Int                 @default(0)
+  discountPercent   Int                 @default(0)
+  discountReason    String?
+  discountUntil     DateTime?
+  featuredPriority  Int                 @default(0)
+  featuredUntil     DateTime?
+  isFeatured        Boolean             @default(false)
+  isPromoted        Boolean             @default(false)
+  promotedUntil     DateTime?
+  viewCount         Int                 @default(0)
+  autoConfirm       Boolean             @default(false)
+  instantBooking    Boolean             @default(true)
+  maxAdvanceBooking Int                 @default(90)
+  minAdvanceBooking Int                 @default(24)
+  discountFrom      DateTime?
+  bonusHoursOffer   Json?
+  durationDiscounts Json?
+  archivedAt        DateTime?
+  archivedReason    String?
+  previousStatus    ListingStatus?
+  analytics         Analytics[]
+  blockedDates      BlockedDate[]
+  bookings          Booking[]
+  images            Image[]             @relation("ListingImages")
+  host              User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  moderations       ListingModeration[]
+  messages          Message[]
+  promotionRequests PromotionRequest[]
+  reviews           Review[]
+  savedBy           SavedListing[]
+  specialPricing    SpecialPricing[]
+  
+  @@index([hostId])
+  @@index([status])
+  @@index([featured])
+  @@index([isFeatured])
+  @@index([discountPercent])
+}
+
+model SpecialPricing {
+  id         Int      @id @default(autoincrement())
+  listingId  Int
+  date       DateTime @db.Date
+  hourlyRate Decimal  @db.Decimal(10, 2)
+  reason     String?
+  createdAt  DateTime @default(now())
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, date])
+  @@index([listingId])
+  @@index([date])
+}
+
+model PromotionRequest {
+  id         Int       @id @default(autoincrement())
+  listingId  Int
+  hostId     Int
+  duration   Int       @default(7)
+  message    String?
+  status     String    @default("PENDING")
+  adminId    Int?
+  adminNote  String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  listing    Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([hostId])
+  @@index([status])
+}
+
+model VerificationLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  type         String
+  action       String
+  provider     String?
+  success      Boolean  @default(false)
+  errorMessage String?  @map("error_message")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("verification_logs")
+}
+
+model Image {
+  id        Int      @id @default(autoincrement())
+  url       String
+  isCover   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  listingId Int?
+  userId    Int?
+  order     Int      @default(0)
+  publicId  String
+  listing   Listing? @relation("ListingImages", fields: [listingId], references: [id], onDelete: Cascade)
+  user      User?    @relation("UserImages", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([userId])
+}
+
+// ==========================================
+// BOOKING SYSTEM
+// ==========================================
+
+model Booking {
+  id                   Int           @id @default(autoincrement())
+  listingId            Int
+  userId               Int
+  createdAt            DateTime      @default(now())
+  bookingDate          DateTime
+  duration             Decimal       @db.Decimal(5, 2)
+  endTime              String
+  guests               Int           @default(1)
+  specialRequests      String?
+  startTime            String
+  status               BookingStatus @default(PENDING)
+  totalPrice           Decimal       @db.Decimal(10, 2)
+  updatedAt            DateTime      @updatedAt
+  basePrice            Decimal       @db.Decimal(10, 2)
+  bookingNumber        String        @unique @default(uuid())
+  canReview            Boolean       @default(false)
+  cancellationReason   String?
+  cancelledAt          DateTime?
+  completedAt          DateTime?
+  extraGuestPrice      Decimal       @default(0) @db.Decimal(10, 2)
+  hasReviewed          Boolean       @default(false)
+  paymentStatus        String        @default("pending")
+  serviceFee           Decimal       @default(0) @db.Decimal(10, 2)
+  stripePaymentId      String?
+  tax                  Decimal       @default(0) @db.Decimal(10, 2)
+  discountAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  listing              Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refunds              Refund[]
+  review               Review?
+  paymentGateway       String?
+  paymentTransactionId String?
+  paymentReferenceId   String?
+  paymentDetails       Json?
+  paymentCompletedAt   DateTime?
+  
+  @@index([userId])
+  @@index([listingId])
+  @@index([status])
+  @@index([bookingDate])
+  @@index([paymentTransactionId])
+  @@index([userId, bookingDate])      // ✅ ADD THIS LINE
+  @@index([listingId, bookingDate])   // ✅ ADD THIS LINE  
+  @@index([listingId, status]) 
+}
+
+model Review {
+  id            Int            @id @default(autoincrement())
+  bookingId     Int            @unique
+  listingId     Int
+  userId        Int
+  rating        Int
+  title         String?
+  comment       String
+  cleanliness   Decimal?       @db.Decimal(2, 1)
+  accuracy      Decimal?       @db.Decimal(2, 1)
+  communication Decimal?       @db.Decimal(2, 1)
+  location      Decimal?       @db.Decimal(2, 1)
+  checkin       Decimal?       @db.Decimal(2, 1)
+  value         Decimal?       @db.Decimal(2, 1)
+  status        ReviewStatus   @default(APPROVED)
+  helpfulCount  Int            @default(0)
+  reported      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  hostResponse  String?
+  respondedAt   DateTime?
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  listing       Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports       ReviewReport[]
+  helpfulUsers  User[]         @relation("HelpfulReviews")
+
+  @@index([listingId])
+  @@index([rating])
+}
+
+// ==========================================
+// ADMIN & MODERATION
+// ==========================================
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  action    String
+  entity    String
+  entityId  Int?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+  admin     User     @relation("AdminAuditLogs", fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+model ListingModeration {
+  id        Int           @id @default(autoincrement())
+  listingId Int
+  adminId   Int
+  status    ListingStatus
+  reason    String?
+  createdAt DateTime      @default(now())
+  admin     User          @relation("AdminListingModerations", fields: [adminId], references: [id], onDelete: Cascade)
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([adminId])
+}
+
+model ReviewReport {
+  id        Int      @id @default(autoincrement())
+  reviewId  Int
+  userId    Int
+  reason    String
+  createdAt DateTime @default(now())
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserReviewReports", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@index([userId])
+}
+
+model Refund {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  adminId   Int
+  amount    Decimal  @db.Decimal(10, 2)
+  reason    String
+  createdAt DateTime @default(now())
+  admin     User     @relation("AdminRefunds", fields: [adminId], references: [id], onDelete: Cascade)
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([adminId])
+}
+
+model AbuseReport {
+  id         Int      @id @default(autoincrement())
+  reporterId Int
+  targetType String
+  targetId   Int
+  reason     String
+  resolved   Boolean  @default(false)
+  adminId    Int?
+  createdAt  DateTime @default(now())
+
+  @@index([resolved])
+}
+
+model PlatformMetric {
+  id     Int      @id @default(autoincrement())
+  date   DateTime
+  metric String
+  value  Decimal
+
+  @@unique([date, metric])
+  @@index([date])
+}
+
+model FeatureFlag {
+  id      Int     @id @default(autoincrement())
+  key     String  @unique
+  enabled Boolean @default(false)
+  data    Json?
+}
+
+model BlockedDate {
+  id        Int      @id @default(autoincrement())
+  listingId Int
+  date      DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, date])
+  @@index([listingId])
+}
+
+model SavedListing {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  listingId Int
+  createdAt DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId])
+}
+
+// ==========================================
+// NOTIFICATION SYSTEM
+// ==========================================
+
+model Notification {
+  id           Int                    @id @default(autoincrement())
+  userId       Int
+  type         NotificationType
+  category     NotificationCategory   @default(TRANSACTIONAL)
+  title        String
+  message      String
+  data         Json?
+  channels     NotificationChannel[]  @default([IN_APP])
+  read         Boolean                @default(false)
+  readAt       DateTime?
+  archived     Boolean                @default(false)
+  scheduledFor DateTime?
+  actionUrl    String?
+  createdAt    DateTime               @default(now())
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries   NotificationDelivery[]
+  
+  @@index([userId])
+  @@index([userId, read])
+  @@index([type])
+  @@index([createdAt])
+  @@index([scheduledFor])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id                Int                 @id @default(autoincrement())
+  notificationId    Int
+  channel           NotificationChannel
+  status            DeliveryStatus      @default(PENDING)
+  provider          String?
+  providerMessageId String?
+  recipient         String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  errorMessage      String?
+  retryCount        Int                 @default(0)
+  cost              Decimal?            @db.Decimal(10, 6)
+  currency          String?             @default("USD")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  notification      Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  @@unique([notificationId, channel])
+  @@index([status])
+  @@index([channel])
+  @@index([createdAt])
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id          Int                   @id @default(autoincrement())
+  userId      Int
+  type        NotificationType
+  channels    NotificationChannel[] @default([IN_APP])
+  enabled     Boolean               @default(true)
+  quietStart  String?
+  quietEnd    String?
+  timezone    String?               @default("Asia/Kathmandu")
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+model NotificationTemplate {
+  id          Int                   @id @default(autoincrement())
+  slug        String
+  type        NotificationType
+  channel     NotificationChannel
+  language    String                @default("en")
+  subject     String?
+  title       String
+  body        String                @db.Text
+  description String?
+  variables   String[]              @default([])
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  
+  @@unique([slug, channel, language])
+  @@index([type])
+  @@index([channel])
+  @@index([isActive])
+  @@map("notification_templates")
+}
+
+// ==========================================
+// MESSAGING SYSTEM
+// ==========================================
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  listingId  Int?
+  content    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  listing    Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([read])
+}
+
+model Analytics {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @default(now())
+  metric    String
+  value     Json
+  listingId Int?
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([listingId])
+}
+
+// ==========================================
+// BLOG SYSTEM (Admin-Only Platform Content)
+// ==========================================
+
+model BlogPost {
+  id              Int           @id @default(autoincrement())
+  authorId        Int
+  authorType      Role
+  title           String        @db.VarChar(200)
+  slug            String        @unique
+  content         String
+  excerpt         String?       @db.VarChar(300)
+  metaTitle       String?       @db.VarChar(70)
+  metaDescription String?       @db.VarChar(170)
+  focusKeyword    String?       @db.VarChar(50)
+  wordCount       Int           @default(0)
+  readingTime     Int           @default(0)
+  seoScore        Int           @default(0)
+  coverImage      String?
+  coverImageAlt   String?       @db.VarChar(150)
+  category        BlogCategory  @default(GENERAL)
+  tags            String[]      @default([])
+  status          BlogStatus    @default(DRAFT)
+  publishedAt     DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  moderatedBy     Int?
+  moderatedAt     DateTime?
+  adminNote       String?
+  isFeatured      Boolean       @default(false)
+  featuredUntil   DateTime?
+  allowComments   Boolean       @default(true)
+  viewCount       Int           @default(0)
+  uniqueViews     Int           @default(0)
+  shareCount      Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  comments        BlogComment[] @relation("BlogComments")
+  likes           BlogLike[]    @relation("BlogLikes")
+  author          User          @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  views           BlogView[]    @relation("BlogViews")
+
+  @@index([authorId])
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([isFeatured])
+  @@index([slug])
+}
+
+model BlogComment {
+  id            Int               @id @default(autoincrement())
+  blogPostId    Int
+  userId        Int
+  parentId      Int?
+  content       String
+  status        CommentStatus     @default(VISIBLE)
+  isAuthorReply Boolean           @default(false)
+  isEdited      Boolean           @default(false)
+  editedAt      DateTime?
+  flagCount     Int               @default(0)
+  flaggedBy     Int[]             @default([])
+  hiddenBy      Int?
+  hiddenAt      DateTime?
+  hiddenReason  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  blogPost      BlogPost          @relation("BlogComments", fields: [blogPostId], references: [id], onDelete: Cascade)
+  parent        BlogComment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       BlogComment[]     @relation("CommentReplies")
+  user          User              @relation("BlogCommentAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  likes         BlogCommentLike[] @relation("CommentLikes")
+
+  @@index([blogPostId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BlogLike {
+  id         Int      @id @default(autoincrement())
+  blogPostId Int
+  userId     Int
+  createdAt  DateTime @default(now())
+  blogPost   BlogPost @relation("BlogLikes", fields: [blogPostId], references: [id], onDelete: Cascade)
+  user       User     @relation("BlogLikesUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([blogPostId, userId])
+  @@index([blogPostId])
+  @@index([userId])
+}
+
+model BlogCommentLike {
+  id        Int         @id @default(autoincrement())
+  commentId Int
+  userId    Int
+  createdAt DateTime    @default(now())
+  comment   BlogComment @relation("CommentLikes", fields: [commentId], references: [id], onDelete: Cascade)
+  user      User        @relation("CommentLikesUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model ContributorProfile {
+  id                 Int       @id @default(autoincrement())
+  userId             Int       @unique
+  tier               Int       @default(0)
+  totalBlogs         Int       @default(0)
+  publishedBlogs     Int       @default(0)
+  rejectedBlogs      Int       @default(0)
+  totalComments      Int       @default(0)
+  approvedComments   Int       @default(0)
+  totalLikesReceived Int       @default(0)
+  totalViews         Int       @default(0)
+  tierUpdatedAt      DateTime?
+  previousTier       Int?
+  isBanned           Boolean   @default(false)
+  bannedAt           DateTime?
+  bannedReason       String?
+  bannedBy           Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation("ContributorProfile", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tier])
+  @@index([userId])
+}
+
+model BlogView {
+  id         Int      @id @default(autoincrement())
+  blogPostId Int
+  userId     Int?
+  sessionId  String?
+  ipHash     String?
+  userAgent  String?
+  referrer   String?
+  createdAt  DateTime @default(now())
+  blogPost   BlogPost @relation("BlogViews", fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@index([blogPostId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// SUPPORT TICKET SYSTEM
+// ==========================================
+
+model SupportTicket {
+  id              Int                 @id @default(autoincrement())
+  ticketNumber    String              @unique
+  userId          Int
+  userType        Role
+  category        TicketCategory
+  subject         String
+  priority        TicketPriority      @default(MEDIUM)
+  status          TicketStatus        @default(OPEN)
+  assignedToId    Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  closedAt        DateTime?
+  firstResponseAt DateTime?
+  relatedType     String?
+  relatedId       Int?
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo      User?               @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  messages        SupportMessage[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([createdAt])
+  @@index([ticketNumber])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id            Int                 @id @default(autoincrement())
+  ticketId      Int
+  senderId      Int
+  senderType    MessageSenderType
+  message       String              @db.Text
+  attachments   String[]            @default([])
+  isInternal    Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  ticket        SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender        User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([ticketId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("support_messages")
+}
+
+// ==========================================
+// HOST STORY SYSTEM (About the Host)
+// ==========================================
+// One story per host - tells their personal journey
+// Displayed on host profile and linked from all their listings
+// ==========================================
+
+model HostStory {
+  id                Int               @id @default(autoincrement())
+  hostId            Int               @unique
+  host              User              @relation("HostStory", fields: [hostId], references: [id], onDelete: Cascade)
+  
+  // Basic Info
+  hostingSince      Int?              // Year they started hosting
+  tagline           String?           @db.VarChar(150)
+  
+  // Story Content (Required - minimum 200 chars)
+  storyTitle        String?           @db.VarChar(200)
+  storyContent      String            @db.Text
+  
+  // What makes them a great host
+  highlights        String[]          @default([])   // "Superhost since 2020", "100+ 5-star reviews"
+  specialties       String[]          @default([])   // "Wedding events", "Corporate gatherings"
+  
+  // Personal touch
+  funFacts          String[]          @default([])   // Fun facts about the host
+  hostMessage       String?           @db.Text       // Personal message to potential guests
+  
+  // Media
+  videoUrl          String?           // YouTube/Vimeo intro video
+  coverImage        String?           // Cover image for story page
+  coverImagePublicId  String?
+  // External Links
+  websiteUrl        String?
+  facebookUrl       String?
+  instagramUrl      String?
+  tiktokUrl         String?
+  
+  // Stats (auto-updated)
+  viewCount         Int               @default(0)
+  
+  // Moderation
+  status            StoryStatus       @default(DRAFT)
+  rejectionReason   String?
+  moderatedBy       Int?
+  moderatedAt       DateTime?
+  
+  // Timestamps
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  publishedAt       DateTime?
+
+  @@index([hostId])
+  @@index([status])
+  @@map("host_stories")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum TierType {
+  FREE
+  BASIC
+  PRO
+  PREMIUM
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+  WEEKLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  EXPIRED
+  CANCELLED
+  PAST_DUE
+  PAUSED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentGatewayType {
+  ESEWA
+  KHALTI
+  DODO
+  MANUAL
+  PENDING
+}
+
+enum Currency {
+  NPR
+  USD
+  INR
+}
+
+enum PaymentType {
+  FULL
+  PRORATED
+  RENEWAL
+  MANUAL
+  REFUND
+}
+
+enum Role {
+  USER
+  HOST
+  ADMIN
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  SUPPORT
+  MODERATOR
+  FINANCE
+  ANALYST
+}
+
+enum ListingStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SOLD_OUT
+  OVER_LIMIT
+  ARCHIVED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  REFUNDED
+  FAILED
+  EXPIRED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationCategory {
+  TRANSACTIONAL
+  ALERT
+  MARKETING
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+enum DeliveryStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+  REJECTED
+}
+
+enum NotificationType {
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_UPDATED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  BOOKING_COMPLETED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  NEW_REVIEW
+  REVIEW_RESPONSE
+  MESSAGE
+  NEW_BOOKING_REQUEST
+  LISTING_APPROVED
+  LISTING_REJECTED
+  BLOG_APPROVED
+  BLOG_REJECTED
+  BLOG_COMMENT
+  BLOG_LIKE
+  WELCOME
+  EMAIL_VERIFIED
+  PHONE_VERIFIED
+  PASSWORD_CHANGED
+  PASSWORD_RESET
+  ACCOUNT_SUSPENDED
+  SYSTEM
+  MAINTENANCE
+  PROMOTION
+  LOGIN_NEW_DEVICE
+  LOGIN_SUSPICIOUS
+  PASSWORD_CHANGED_ALERT
+  TWO_FACTOR_ENABLED
+  TWO_FACTOR_DISABLED
+  API_KEY_CREATED
+  API_KEY_REVOKED
+  HOST_STORY_APPROVED
+  HOST_STORY_REJECTED
+}
+
+enum BlogStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum BlogCategory {
+  SPACE_TOUR
+  HOSTING_TIPS
+  LOCAL_GUIDE
+  ANNOUNCEMENT
+  EVENT_EXPERIENCE
+  PLANNING_TIPS
+  VENUE_REVIEW
+  INSPIRATION
+  GENERAL
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+  FLAGGED
+  DELETED
+}
+
+enum TicketCategory {
+  BOOKING
+  PAYMENT
+  LISTING
+  ACCOUNT
+  TECHNICAL
+  HOST_ISSUE
+  GUEST_ISSUE
+  FEEDBACK
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  WAITING_ADMIN
+  RESOLVED
+  CLOSED
+}
+
+enum MessageSenderType {
+  USER
+  ADMIN
+}
+
+enum StoryStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.Text
+  category    String?  @default("GENERAL")
+  dataType    String   @default("STRING")
+  isPublic    Boolean  @default(false)
+  editableBy  String   @default("SUPER_ADMIN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([key])
+  @@index([category])
+  @@map("system_settings")
+}
